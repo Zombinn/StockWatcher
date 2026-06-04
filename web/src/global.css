@@ -1,0 +1,68 @@
+/* === StockWatcher — 白底红橙主题 + 微交互动画 === */
+
+:root {
+  /* 红橙渐变主色系 */
+  --red-orange-1: #fff5f0;
+  --red-orange-2: #ffe8d6;
+  --red-orange-3: #ffcfb3;
+  --red-orange-4: #ffad85;
+  --red-orange-5: #ff8552;
+  --red-orange-6: #f5642a;
+  --red-orange-7: #d94d1a;
+  --red-orange-8: #b03a10;
+  --red-orange-9: #8a2c0a;
+
+  /* 语义色 */
+  --primary: #f5642a;
+  --primary-dark: #d94d1a;
+  --accent: #ff8552;
+  --up: #e53935;
+  --down: #43a047;
+  --warning: #f9a825;
+  --info: #1e88e5;
+
+  /* 背景 */
+  --bg-primary: #ffffff;
+  --bg-elevated: #fafafa;
+  --bg-card: #ffffff;
+  --bg-sider: #fafafa;
+  --bg-hover: #fff5f0;
+
+  /* 文本 */
+  --text-primary: #1a1a2e;
+  --text-secondary: #64748b;
+  --text-muted: #94a3b8;
+
+  /* 边框 */
+  --border-subtle: rgba(0, 0, 0, 0.06);
+  --border-accent: rgba(245, 100, 42, 0.25);
+  --border-hover: rgba(245, 100, 42, 0.4);
+
+  /* 阴影 */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 8px 30px rgba(0, 0, 0, 0.08);
+  --shadow-glow: 0 2px 12px rgba(245, 100, 42, 0.2);
+
+  /* 字体 */
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
+
+  /* 圆角 */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+}
+
+
+/* =============================================
+   主题色 Loading 文字动效
+   ============================================= */
+@keyframes loading-text-pulse {
+  0%, 100% { color: var(--primary); opacity: 0.5; }
+  50% { color: var(--accent); opacity: 1; }
+}
+.loading-text {
+  animation: loading-text-pulse 1.6s ease-in-out infinite;
+  font-weight: 500;
+}

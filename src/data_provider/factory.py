@@ -2,9 +2,8 @@
 from __future__ import annotations
 
 import logging
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 
-from src.config import get_config
 from src.data_provider.base import BaseDataProvider
 
 logger = logging.getLogger(__name__)
@@ -66,43 +65,43 @@ def _create_provider(name: str) -> BaseDataProvider:
 def get_provider_for_code(code: str) -> BaseDataProvider:
     """根据股票代码自动选择数据提供者，带自动降级"""
     code = code.strip().upper()
-    config = get_config()
 
-    # A 股降级链: AkShare > [Tushare if token] > [TickFlow if token]
-    if not code.endswith(".HK") and not code.endswith(".US"):
-        # 首选 AkShare（无 token 要求）
+    # 智能判断市场:
+    #   .HK 后缀 / 5位纯数字 = 港股 → YFinance
+    #   .US 后缀 / 纯字母(≤5字符, 如TSLA,AAPL) = 美股 → YFinance > Finnhub
+    #   其余（6位数字等）= A股 → AkShare > Tushare > TickFlow
+    is_hk = code.endswith(".HK") or (code.isdigit() and len(code) == 5)
+    is_us = code.endswith(".US") or (code.isalpha() and len(code) <= 5)
+
+    if is_us or is_hk:
+        # 港股/美股降级链: YFinance > Finnhub
         try:
-            return get_provider("akshare")
+            return get_provider("yfinance")
         except Exception as e:
-            logger.debug("AkShare 不可用: %s", e)
-
-        # 次选 Tushare（需 token）
-        if _has_token("TUSHARE_TOKEN"):
+            logger.debug("YFinance 不可用: %s", e)
+        if _has_token("FINNHUB_API_KEY"):
             try:
-                return get_provider("tushare")
+                return get_provider("finnhub")
             except Exception as e:
-                logger.debug("Tushare 不可用: %s", e)
-
-        # 末选 TickFlow（需 token）
-        if _has_token("TICKFLOW_API_KEY"):
-            try:
-                return get_provider("tickflow")
-            except Exception as e:
-                logger.debug("TickFlow 不可用: %s", e)
-
-        # 都不行返回 AkShare 让上游处理异常
-        return get_provider("akshare")
-
-    # 港股/美股降级链: YFinance > Finnhub
-    try:
+                logger.debug("Finnhub 不可用: %s", e)
         return get_provider("yfinance")
+
+    # A 股降级链: AkShare > Tushare > TickFlow
+    try:
+        return get_provider("akshare")
     except Exception as e:
-        logger.debug("YFinance 不可用: %s", e)
+        logger.debug("AkShare 不可用: %s", e)
 
-    if _has_token("FINNHUB_API_KEY"):
+    if _has_token("TUSHARE_TOKEN"):
         try:
-            return get_provider("finnhub")
+            return get_provider("tushare")
         except Exception as e:
-            logger.debug("Finnhub 不可用: %s", e)
+            logger.debug("Tushare 不可用: %s", e)
 
-    return get_provider("yfinance")
+    if _has_token("TICKFLOW_API_KEY"):
+        try:
+            return get_provider("tickflow")
+        except Exception as e:
+            logger.debug("TickFlow 不可用: %s", e)
+
+    return get_provider("akshare")

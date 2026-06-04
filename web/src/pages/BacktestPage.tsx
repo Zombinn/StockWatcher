@@ -1,6 +1,6 @@
-import { useState } from 'react';
-import { Card, Button, Row, Col, Statistic, Table, Tag, Alert, Input, Select, Space, Typography } from 'antd';
-import { ExperimentOutlined } from '@ant-design/icons';
+import { useState, useEffect } from 'react';
+import { Card, Button, Row, Col, Statistic, Table, Tag, Alert, Input, Select, Space, Typography, Spin, Empty } from 'antd';
+import { ExperimentOutlined, ReloadOutlined, RiseOutlined, FallOutlined } from '@ant-design/icons';
 import { api } from '../api';
 
 const { Text } = Typography;
@@ -19,53 +19,95 @@ export default function BacktestPage() {
   const [data, setData] = useState<any>(null);
   const [error, setError] = useState('');
 
-  const run = async () => {
+  const run = async (autoCode?: string) => {
+    const c = autoCode || code;
+    if (!c) return;
     setLoading(true); setError('');
-    try { const d = await api.backtest(code, strategy); setData(d.data); }
+    try { const d = await api.backtest(c, strategy); setData(d.data); }
     catch (e: any) { setError(e.message); }
     finally { setLoading(false); }
   };
 
+  useEffect(() => { if (code) run(code); }, []);
+
   const tradeColumns = [
-    { title: '日期', dataIndex: 'date', width: 110 },
-    { title: '操作', dataIndex: 'action', width: 70, render: (v: string) => <Tag color={v === 'buy' ? 'red' : 'green'}>{v}</Tag> },
-    { title: '价格', dataIndex: 'price', width: 90, render: (v: number) => v.toFixed(2) },
-    { title: '数量', dataIndex: 'shares', width: 80 },
-    { title: '金额', dataIndex: 'amount', width: 100, render: (v: number) => v.toFixed(2) },
+    { title: '日期', dataIndex: 'date', width: 105,
+      render: (v: string) => <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: '#64748b' }}>{v}</span>,
+    },
+    { title: '操作', dataIndex: 'action', width: 65,
+      render: (v: string) => <Tag color={v === 'buy' ? 'red' : 'green'} style={{ borderRadius: 4 }}>{v === 'buy' ? '买入' : '卖出'}</Tag>,
+    },
+    { title: '价格', dataIndex: 'price', width: 85, align: 'right' as const,
+      render: (v: number) => v?.toFixed(2) ?? '-',
+    },
+    { title: '数量', dataIndex: 'shares', width: 70, align: 'right' as const },
+    { title: '金额', dataIndex: 'amount', width: 95, align: 'right' as const,
+      render: (v: number) => v?.toFixed(2) ?? '-',
+    },
     { title: '理由', dataIndex: 'reason' },
   ];
 
+  const isPositive = (data?.total_return_pct ?? 0) >= 0;
+
   return (
     <div>
-      <Card style={{ marginBottom: 16 }}>
-        <Space>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+        <div>
+          <Text strong style={{ fontSize: 20, color: '#1a1a2e', letterSpacing: '-0.3px' }}>策略回测</Text>
+          <Text type="secondary" style={{ display: 'block', fontSize: 13, marginTop: 2 }}>历史数据验证交易策略</Text>
+        </div>
+      </div>
+      <Card className="glass-card" style={{ marginBottom: 20 }}>
+        <Space wrap>
           <Input value={code} onChange={e => setCode(e.target.value)} style={{ width: 120 }} placeholder="股票代码" />
-          <Select value={strategy} onChange={setStrategy} options={strategies} style={{ width: 130 }} />
-          <Button type="primary" icon={<ExperimentOutlined />} loading={loading} onClick={run}>回测</Button>
+          <Select value={strategy} onChange={v => { setStrategy(v); }} options={strategies} style={{ width: 130 }} />
+          <Button type="primary" icon={<ExperimentOutlined />} loading={loading} onClick={() => run()}>回测</Button>
         </Space>
       </Card>
-      {error && <Alert type="error" message={error} showIcon style={{ marginBottom: 16 }} />}
+      {error && <Alert type="error" message={error} showIcon style={{ marginBottom: 16 }} closable onClose={() => setError('')} />}
 
-      {data && (
+      {loading ? (
+        <div style={{ textAlign: 'center', padding: 80 }}>
+          <div className="loading-breathe" style={{ marginBottom: 16 }}>
+            <div className="dot-pulse" style={{ margin: '0 auto' }} />
+          </div>
+          <Text className="loading-text" style={{ fontSize: 13 }}>正在回测中...</Text>
+        </div>
+      ) : data ? (
         <>
-          <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
-            <Col xs={12} md={6}><Card size="small"><Statistic title="初始资金" value={data.initial_capital} precision={2} /></Card></Col>
-            <Col xs={12} md={6}><Card size="small"><Statistic title="最终价值" value={data.final_value} precision={2}
-              valueStyle={{ color: data.total_return >= 0 ? '#ff4d4d' : '#00d4aa' }} /></Card></Col>
-            <Col xs={12} md={6}><Card size="small"><Statistic title="总收益" value={data.total_return_pct} precision={2} suffix="%"
-              valueStyle={{ color: data.total_return_pct >= 0 ? '#ff4d4d' : '#00d4aa' }} /></Card></Col>
-            <Col xs={12} md={6}><Card size="small"><Statistic title="最大回撤" value={data.max_drawdown} precision={2} suffix="%" /></Card></Col>
-            <Col xs={12} md={6}><Card size="small"><Statistic title="胜率" value={data.win_rate} precision={1} suffix="%" /></Card></Col>
-            <Col xs={12} md={6}><Card size="small"><Statistic title="夏普比率" value={data.sharpe_ratio} precision={2} /></Card></Col>
-            <Col xs={12} md={6}><Card size="small"><Statistic title="交易次数" value={data.total_trades} /></Card></Col>
-            <Col xs={12} md={6}><Card size="small"><Statistic title="年化收益" value={(data.annual_return || 0) * 100} precision={2} suffix="%" /></Card></Col>
+          <Row gutter={[12, 12]} style={{ marginBottom: 16 }}>
+            {[
+              { title: '初始资金', value: data.initial_capital, unit: '', color: undefined },
+              { title: '最终价值', value: data.final_value, unit: '', color: isPositive ? '#e53935' : '#43a047' },
+              { title: '总收益', value: data.total_return_pct, unit: '%', color: isPositive ? '#e53935' : '#43a047', prefix: isPositive ? <RiseOutlined /> : <FallOutlined /> },
+              { title: '最大回撤', value: data.max_drawdown, unit: '%', color: undefined },
+              { title: '胜率', value: data.win_rate, unit: '%', color: undefined },
+              { title: '夏普比率', value: data.sharpe_ratio, unit: '', color: undefined },
+              { title: '交易次数', value: data.total_trades, unit: '', color: undefined },
+              { title: '年化收益', value: (data.annual_return || 0) * 100, unit: '%', color: isPositive ? '#e53935' : '#43a047', prefix: isPositive ? <RiseOutlined /> : <FallOutlined /> },
+            ].map((s, i) => (
+              <Col xs={12} sm={6} key={i}>
+                <Card className="stat-card" size="small">
+                  <Statistic
+                    title={<span style={{ color: '#64748b' }}>{s.title}</span>}
+                    value={s.value}
+                    precision={s.title === '交易次数' ? 0 : 2}
+                    suffix={s.unit ? <span style={{ fontSize: 14, color: '#94a3b8' }}>{s.unit}</span> : ''}
+                    prefix={s.prefix}
+                    valueStyle={{ color: s.color ?? '#1a1a2e', fontWeight: 600, fontSize: 20 }}
+                  />
+                </Card>
+              </Col>
+            ))}
           </Row>
-          {data.trades?.length > 0 && (
-            <Card title="交易记录">
+          <Card className="glass-card" title={<span style={{ fontSize: 15, fontWeight: 600 }}>交易记录</span>}>
+            {data.trades?.length > 0 ? (
               <Table dataSource={data.trades.slice().reverse()} columns={tradeColumns} rowKey="date" pagination={false} size="small" />
-            </Card>
-          )}
+            ) : <Empty description="该策略未产生交易" />}
+          </Card>
         </>
+      ) : (
+        <Card className="glass-card"><Text type="secondary">输入股票代码点击"回测"开始</Text></Card>
       )}
     </div>
   );

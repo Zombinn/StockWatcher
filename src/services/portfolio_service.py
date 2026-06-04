@@ -16,6 +16,16 @@ logger = logging.getLogger(__name__)
 PORTFOLIO_FILE = "data/portfolio.json"
 
 
+def _detect_market(code: str) -> str:
+    """根据股票代码判断市场 A / HK / US"""
+    code = code.strip().upper()
+    if code.endswith(".HK") or (code.isdigit() and len(code) == 5):
+        return "HK"
+    if code.endswith(".US") or (code.isalpha() and len(code) <= 5):
+        return "US"
+    return "A"
+
+
 @dataclass
 class Position:
     """持仓"""
@@ -27,6 +37,7 @@ class Position:
     market_value: float = 0.0  # 市值
     profit_pct: float = 0.0  # 收益率
     profit_amount: float = 0.0  # 盈亏金额
+    market: str = ""  # A / HK / US
     weight: float = 0.0  # 仓位权重 %
     sector: str = ""
 
@@ -73,7 +84,7 @@ class PortfolioService:
         path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
         logger.info("持仓已保存")
 
-    def add_position(self, code: str, quantity: int, cost_price: float, name: str = "") -> None:
+    def add_position(self, code: str, quantity: int, cost_price: float, name: str = "", market: str = "") -> None:
         """添加或更新持仓"""
         if code in self._positions:
             existing = self._positions[code]
@@ -82,7 +93,7 @@ class PortfolioService:
             existing["quantity"] = total_qty
         else:
             self._positions[code] = {
-                "code": code, "name": name,
+                "code": code, "name": name, "market": market or _detect_market(code),
                 "quantity": quantity, "cost_price": cost_price,
             }
         self.save()
@@ -127,6 +138,7 @@ class PortfolioService:
                 market_value=market_value,
                 profit_pct=profit_pct,
                 profit_amount=profit_amount,
+                market=pos.get("market", _detect_market(code)),
                 sector=info.sector if info else '',
             )
             portfolio.positions.append(position)

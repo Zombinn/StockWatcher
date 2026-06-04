@@ -1,8 +1,8 @@
 """大盘复盘模块 - 市场情绪、板块轮动、北向资金"""
 from __future__ import annotations
 
-import json
 import logging
+import random
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Dict, List, Optional
@@ -13,13 +13,55 @@ from src.config import get_config
 
 logger = logging.getLogger(__name__)
 
-AKSHARE_MARKET_URL = "https://push2.eastmoney.com/api/qt/ulist.np/get"
 AKSHARE_INDEX_MAP = {
     "上证指数": "1.000001",
     "深证成指": "0.399001",
     "创业板指": "0.399006",
     "科创50": "1.000688",
 }
+
+USER_AGENTS = [
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+]
+
+
+def _headers() -> dict:
+    return {
+        "User-Agent": random.choice(USER_AGENTS),
+        "Referer": "https://quote.eastmoney.com/",
+        "Accept": "application/json, text/plain, */*",
+        "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+    }
+
+
+def _http_client() -> httpx.AsyncClient:
+    return httpx.AsyncClient(
+        headers=_headers(),
+        follow_redirects=True,
+        timeout=15.0,
+        limits=httpx.Limits(max_keepalive_connections=5, max_connections=10),
+    )
+
+
+async def _fetch_json(url: str, params: dict, retries: int = 2) -> Optional[dict]:
+    """带双域名 fallback + 重试的 JSON 请求"""
+    import asyncio
+    for host in ("push2.eastmoney.com", "push2delay.eastmoney.com"):
+        for attempt in range(retries):
+            try:
+                full_url = url.replace("push2.eastmoney.com", host)
+                async with _http_client() as client:
+                    resp = await client.get(full_url, params=params)
+                    if resp.status_code == 200:
+                        return await resp.json()
+                    logger.debug("%s returned status %d, trying fallback", host, resp.status_code)
+            except Exception as e:
+                logger.debug("请求 %s (第%d次) 失败: %s", host, attempt + 1, e)
+                if attempt < retries - 1:
+                    await asyncio.sleep(1.0)
+    return None
 
 
 @dataclass
@@ -79,118 +121,68 @@ class MarketReviewer:
         """获取主要指数数据"""
         indices = []
         try:
-            fields = "f2,f3,f4,f6,f15"
             secids = ",".join(AKSHARE_INDEX_MAP.values())
-            async with httpx.AsyncClient(
-    headers={
-        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
-        "Referer": "https://quote.eastmoney.com/",
-    },
-    follow_redirects=True,
-) as client:
-                resp = await client.get(
-                    AKSHARE_MARKET_URL,
-                    params={"fltt": 2, "fields": fields, "secids": secids},
-                    timeout=10,
-                )
-                data = resp.json()
-                for item in data.get("data", {}).get("diff", []):
-                    name_map = {v: k for k, v in AKSHARE_INDEX_MAP.items() if item.get("f12") in v}
-                    name = next(iter(name_map.values()), item.get("f14", ""))
-                    indices.append(IndexData(
-                        name=name,
-                        code=item.get("f12", ""),
-                        price=float(item.get("f2", 0)),
-                        change_pct=float(item.get("f3", 0)),
-                        change_amount=float(item.get("f4", 0)),
-                        volume=float(item.get("f6", 0)),
-                        amount=float(item.get("f15", 0)),
-                    ))
+            data = await _fetch_json(
+                "https://push2.eastmoney.com/api/qt/ulist.np/get",
+                {"fltt": 2, "fields": "f2,f3,f4,f6,f15,f12,f14", "secids": secids},
+            )
+            if data and isinstance(data, dict) and "data" in data and data["data"]:
+                diff = data["data"].get("diff", [])
+                if isinstance(diff, list):
+                    for item in diff:
+                        name = item.get("f14", "")
+                        indices.append(IndexData(
+                            name=name,
+                            code=item.get("f12", ""),
+                            price=float(item.get("f2", 0)),
+                            change_pct=float(item.get("f3", 0)),
+                            change_amount=float(item.get("f4", 0)),
+                            volume=float(item.get("f6", 0)),
+                            amount=float(item.get("f15", 0)),
+                        ))
         except Exception as e:
             logger.warning("获取指数数据失败: %s", e)
+        if not indices:
+            logger.info("指数数据为空，返回空列表")
         return indices
-
-    async def fetch_market_overview(self) -> dict:
-        """获取市场概览（涨跌家数）"""
-        try:
-            async with httpx.AsyncClient(
-    headers={
-        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
-        "Referer": "https://quote.eastmoney.com/",
-    },
-    follow_redirects=True,
-) as client:
-                resp = await client.get(
-                    "https://push2.eastmoney.com/api/qt/ulist.np/get",
-                    params={
-                        "fltt": 2,
-                        "fields": "f2,f3,f4,f12,f14",
-                        "secids": "1.000001",
-                        "mp": 1,
-                    },
-                    timeout=10,
-                )
-                data = resp.json()
-                return data
-        except Exception as e:
-            logger.warning("获取市场概览失败: %s", e)
-            return {}
 
     async def fetch_sectors(self, top: int = 10) -> tuple[List[SectorData], List[SectorData]]:
         """获取板块涨幅/跌幅排行"""
         top_sectors, fall_sectors = [], []
         try:
-            async with httpx.AsyncClient(
-    headers={
-        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
-        "Referer": "https://quote.eastmoney.com/",
-    },
-    follow_redirects=True,
-) as client:
-                resp = await client.get(
-                    "https://push2.eastmoney.com/api/qt/clist/get",
-                    params={
-                        "pn": 1,
-                        "pz": top,
-                        "fs": "m:90+t:3",
-                        "fields": "f2,f3,f4,f12,f14,f104,f105",
-                        "po": 1,  # 降序
-                        "fid": "f3",
-                    },
-                    timeout=10,
-                )
-                data = resp.json()
-                items = data.get("data", {}).get("diff", [])
-                for item in items:
-                    top_sectors.append(SectorData(
-                        name=item.get("f14", ""),
-                        change_pct=float(item.get("f3", 0)),
-                        rise_count=int(item.get("f104", 0)),
-                        fall_count=int(item.get("f105", 0)),
-                    ))
+            params = {
+                "pn": 1, "pz": top,
+                "fs": "m:90+t:3",
+                "fields": "f2,f3,f4,f12,f14,f104,f105",
+                "fid": "f3",
+            }
+            # 涨幅排行 (po=1 降序)
+            params["po"] = 1
+            data = await _fetch_json("https://push2.eastmoney.com/api/qt/clist/get", params.copy())
+            if data and isinstance(data, dict) and "data" in data and data["data"]:
+                items = data["data"].get("diff", [])
+                if isinstance(items, list):
+                    for item in items:
+                        top_sectors.append(SectorData(
+                            name=item.get("f14", ""),
+                            change_pct=float(item.get("f3", 0)),
+                            rise_count=int(item.get("f104", 0)),
+                            fall_count=int(item.get("f105", 0)),
+                        ))
 
-                # 跌幅排行
-                resp2 = await client.get(
-                    "https://push2.eastmoney.com/api/qt/clist/get",
-                    params={
-                        "pn": 1,
-                        "pz": top,
-                        "fs": "m:90+t:3",
-                        "fields": "f2,f3,f4,f12,f14,f104,f105",
-                        "po": 0,
-                        "fid": "f3",
-                    },
-                    timeout=10,
-                )
-                data2 = resp2.json()
-                items2 = data2.get("data", {}).get("diff", [])
-                for item in items2:
-                    fall_sectors.append(SectorData(
-                        name=item.get("f14", ""),
-                        change_pct=float(item.get("f3", 0)),
-                        rise_count=int(item.get("f104", 0)),
-                        fall_count=int(item.get("f105", 0)),
-                    ))
+            # 跌幅排行 (po=0 升序)
+            params["po"] = 0
+            data = await _fetch_json("https://push2.eastmoney.com/api/qt/clist/get", params.copy())
+            if data and isinstance(data, dict) and "data" in data and data["data"]:
+                items = data["data"].get("diff", [])
+                if isinstance(items, list):
+                    for item in items:
+                        fall_sectors.append(SectorData(
+                            name=item.get("f14", ""),
+                            change_pct=float(item.get("f3", 0)),
+                            rise_count=int(item.get("f104", 0)),
+                            fall_count=int(item.get("f105", 0)),
+                        ))
         except Exception as e:
             logger.warning("获取板块数据失败: %s", e)
         return top_sectors, fall_sectors
@@ -198,21 +190,13 @@ class MarketReviewer:
     async def fetch_northbound(self) -> Optional[NorthboundFlow]:
         """获取北向资金数据"""
         try:
-            async with httpx.AsyncClient(
-    headers={
-        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
-        "Referer": "https://quote.eastmoney.com/",
-    },
-    follow_redirects=True,
-) as client:
-                resp = await client.get(
-                    "https://push2.eastmoney.com/api/qt/kamt.kline/get",
-                    params={"fields1": "f1,f2,f3,f4", "fields2": "f51,f52,f53,f54,f55"},
-                    timeout=10,
-                )
-                data = resp.json()
-                klines = data.get("data", {}).get("klines", [])
-                if klines:
+            data = await _fetch_json(
+                "https://push2.eastmoney.com/api/qt/kamt.kline/get",
+                {"fields1": "f1,f2,f3,f4", "fields2": "f51,f52,f53,f54,f55"},
+            )
+            if data and isinstance(data, dict) and "data" in data and data["data"]:
+                klines = data["data"].get("klines", [])
+                if klines and len(klines) > 0:
                     latest = klines[-1].split(",")
                     sh_net = float(latest[1]) if len(latest) > 1 else 0.0
                     sz_net = float(latest[2]) if len(latest) > 2 else 0.0
@@ -245,7 +229,7 @@ class MarketReviewer:
             if llm_result:
                 result.llm_analysis = llm_result
         except Exception as e:
-            logger.warning("LLM 大盘分析失败: %s", e)
+            logger.debug("LLM 大盘分析不可用: %s", e)
 
         return result
 

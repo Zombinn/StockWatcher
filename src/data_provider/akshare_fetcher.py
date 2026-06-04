@@ -20,29 +20,31 @@ class AkShareProvider(BaseDataProvider):
 
     def __init__(self):
         self._last_call = 0.0
+        self._rate_limit_sec = 0.5
+        self._timeout = 15
 
     def _rate_limit(self):
         """AkShare 反爬限制：每次调用间隔至少 0.5s"""
         elapsed = time.time() - self._last_call
-        if elapsed < 0.5:
-            time.sleep(0.5 - elapsed)
+        if elapsed < self._rate_limit_sec:
+            time.sleep(self._rate_limit_sec - elapsed)
         self._last_call = time.time()
 
-    def _ua_rotate(self):
+    @staticmethod
+    def _ua_rotate():
         """随机 User-Agent 降低被封概率"""
         uas = [
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36",
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
         ]
-        import akshare as ak
-        # 部分版本支持设置 headers
         try:
             ak.set_headers({"User-Agent": random.choice(uas)})
         except Exception:
             pass
 
-    def _clean_code(self, code: str) -> str:
+    @staticmethod
+    def _clean_code(code: str) -> str:
         """清理代码格式为 AkShare 所需格式：纯数字"""
         code = code.strip().upper()
         for prefix in ("SH", "SZ", "BJ", "SH.", "SZ.", "BJ."):
@@ -53,9 +55,10 @@ class AkShareProvider(BaseDataProvider):
         """获取实时行情（通过东方财富接口）"""
         try:
             self._rate_limit()
+            self._ua_rotate()
             clean = self._clean_code(code)
             df = ak.stock_zh_a_spot_em()
-            if df.empty:
+            if df is None or df.empty:
                 return None
             row = df[df["代码"] == clean]
             if row.empty:
@@ -80,17 +83,14 @@ class AkShareProvider(BaseDataProvider):
             return None
 
     async def get_kline(self, code: str, period: str = "daily", count: int = 120) -> List[KLine]:
-        """获取 K 线数据（东方财富 stock_zh_a_hist）"""
+        """获取 K 线数据（东方财富 stock_zh_a_hist，失败降级到新浪）"""
         try:
             self._rate_limit()
+            self._ua_rotate()
             clean = self._clean_code(code)
 
-            # 计算起止日期
             end = datetime.now()
-            if period == "daily":
-                start = end - timedelta(days=count * 2)  # 多取一些，过滤非交易日
-            else:
-                start = end - timedelta(days=count * 3)
+            start = end - timedelta(days=count * 2)  # 多取一些，过滤非交易日
 
             df = ak.stock_zh_a_hist(
                 symbol=clean,
@@ -101,7 +101,7 @@ class AkShareProvider(BaseDataProvider):
             )
 
             if df is None or df.empty:
-                logger.warning("AkShare K 线为空 %s", code)
+                logger.debug("AkShare(EM) K 线为空 %s，尝试新浪接口", code)
                 return self._fallback_kline_sina(code, count)
 
             df = df.tail(count)
@@ -129,7 +129,8 @@ class AkShareProvider(BaseDataProvider):
         try:
             self._rate_limit()
             clean = self._clean_code(code)
-            df = ak.stock_zh_a_daily(symbol=f"sh{clean}" if clean.startswith("6") else f"sz{clean}")
+            prefix = "sh" if clean.startswith("6") else "sz"
+            df = ak.stock_zh_a_daily(symbol=f"{prefix}{clean}")
             if df is None or df.empty:
                 return []
             df = df.tail(count)
@@ -152,6 +153,7 @@ class AkShareProvider(BaseDataProvider):
     async def get_stock_info(self, code: str) -> Optional[StockInfo]:
         try:
             self._rate_limit()
+            self._ua_rotate()
             clean = self._clean_code(code)
             df = ak.stock_individual_info_em(symbol=clean)
             info = {}

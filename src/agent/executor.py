@@ -118,7 +118,7 @@ class StockAgent:
         session.updated_at = datetime.now().isoformat()
 
         if not self.llm_client:
-            return "LLM 客户端未配置，请先配置 API Key。"
+            return self._fallback_reply(session, message, strategy)
 
         # 构建上下文
         context_text = self._build_context(session, strategy)
@@ -134,7 +134,7 @@ class StockAgent:
             return response
         except Exception as e:
             logger.error("Agent 回答失败: %s", e)
-            return f"抱歉，分析服务暂时不可用: {e}"
+            return self._fallback_reply(session, message, strategy)
 
     def _build_context(self, session: AgentSession, strategy: str = "") -> str:
         """构建策略上下文"""
@@ -162,6 +162,42 @@ class StockAgent:
         if strategy and strategy in STRATEGIES:
             lines.append(f"\n分析策略: {strategy} - {STRATEGIES[strategy]}")
 
+        return "\n".join(lines)
+
+    def _fallback_reply(self, session: AgentSession, message: str, strategy: str = "") -> str:
+        """无 LLM 时的模板化回复"""
+        ctx = session.context.get("analysis", {})
+        ind = ctx.get("indicators", {})
+        price = ctx.get("price", "N/A")
+        trend = ctx.get("trend", "未知")
+        signal = ctx.get("signal", "未知")
+        score = ctx.get("score", "N/A")
+
+        score_level = "高" if isinstance(score, (int, float)) and score >= 70 else "中" if isinstance(score, (int, float)) and score >= 40 else "低"
+        rsi = ind.get("rsi_14", 50)
+        rsi_note = "超买区" if rsi >= 70 else "超卖区" if rsi <= 30 else "中性区域"
+        macd = ind.get("macd_hist", 0)
+        macd_note = "多头动能" if macd > 0 else "空头动能"
+
+        lines = [
+            f"## 📊 {session.stock_name} ({session.stock_code}) 分析",
+            "",
+            f"**当前价格**: {price}",
+            f"**趋势**: {trend}",
+            f"**技术信号**: {signal}",
+            f"**综合评分**: {score}/100（{score_level}）",
+            "",
+            "### 关键指标",
+            f"- RSI(14) = {rsi}（{rsi_note}）",
+            f"- MACD柱 = {macd}（{macd_note}）",
+            f"- MA5 = {ind.get('ma5', 'N/A')} / MA10 = {ind.get('ma10', 'N/A')} / MA20 = {ind.get('ma20', 'N/A')}",
+            f"- KDJ = ({ind.get('kdj_k', 'N/A')}, {ind.get('kdj_d', 'N/A')}, {ind.get('kdj_j', 'N/A')})",
+            f"- BOLL 上轨 = {ind.get('boll_up', 'N/A')} / 下轨 = {ind.get('boll_low', 'N/A')}",
+            f"- 支撑位 = {ctx.get('support', 'N/A')} / 压力位 = {ctx.get('resistance', 'N/A')}",
+            "",
+            "### 建议",
+            "> 以上为技术面数据分析。如需更深入的 LLM 解读，请在 `.env` 中配置 `OPENAI_API_KEY` 和 `OPENAI_BASE_URL`。",
+        ]
         return "\n".join(lines)
 
     def get_session(self, session_id: str) -> Optional[AgentSession]:

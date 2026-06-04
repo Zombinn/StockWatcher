@@ -1,16 +1,20 @@
-import { useState } from 'react';
-import { Card, Button, Row, Col, Statistic, Table, Tag, Alert, Typography, Modal, Input, InputNumber, Space } from 'antd';
-import { ReloadOutlined, PlusOutlined } from '@ant-design/icons';
+import { useState, useEffect } from 'react';
+import { Card, Button, Row, Col, Statistic, Table, Tag, Alert, Typography, Modal, Input, InputNumber, Space, Select, Spin, Empty } from 'antd';
+import { ReloadOutlined, PlusOutlined, WalletOutlined, RiseOutlined, FallOutlined } from '@ant-design/icons';
 import { api } from '../api';
 
 const { Text } = Typography;
 
+const MARKET_LABELS: Record<string, string> = { A: 'A股', HK: '港股', US: '美股' };
+const MARKET_COLORS: Record<string, string> = { A: '#1e88e5', HK: '#8e24aa', US: '#43a047' };
+
 export default function PortfolioPage() {
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [data, setData] = useState<any>(null);
   const [error, setError] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
-  const [form, setForm] = useState({ code: '', quantity: 100, cost_price: 0 });
+  const [filterMarket, setFilterMarket] = useState<string>('');
+  const [form, setForm] = useState({ code: '', quantity: 100, cost_price: 0, market: '' });
 
   const load = async () => {
     setLoading(true); setError('');
@@ -19,57 +23,165 @@ export default function PortfolioPage() {
     finally { setLoading(false); }
   };
 
+  useEffect(() => { load(); }, []);
+
   const add = async () => {
-    await api.addPosition(form.code, form.quantity, form.cost_price);
+    await api.addPosition(form.code, form.quantity, form.cost_price, '', form.market);
     setModalOpen(false);
+    setForm({ code: '', quantity: 100, cost_price: 0, market: '' });
     load();
   };
 
+  const filteredPositions = (data?.positions || []).filter((p: any) => {
+    if (!filterMarket) return true;
+    return p.market === filterMarket;
+  });
+
+  const marketStats: Record<string, { count: number; value: number }> = {};
+  for (const p of data?.positions || []) {
+    const m = p.market || 'A';
+    if (!marketStats[m]) marketStats[m] = { count: 0, value: 0 };
+    marketStats[m].count += p.quantity;
+    marketStats[m].value += p.market_value;
+  }
+
   const columns = [
-    { title: '代码', dataIndex: 'code', width: 100 },
-    { title: '名称', dataIndex: 'name', width: 120 },
-    { title: '持仓', dataIndex: 'quantity', width: 80 },
-    { title: '成本', dataIndex: 'cost_price', width: 90, render: (v: number) => v.toFixed(2) },
-    { title: '现价', dataIndex: 'current_price', width: 90, render: (v: number) => v.toFixed(2) },
-    { title: '市值', dataIndex: 'market_value', width: 100, render: (v: number) => v.toFixed(2) },
-    {
-      title: '盈亏', dataIndex: 'profit_pct', width: 90,
-      render: (v: number) => <Tag color={v >= 0 ? 'red' : 'green'}>{v >= 0 ? '+' : ''}{v.toFixed(2)}%</Tag>,
+    { title: '市场', dataIndex: 'market', width: 65,
+      render: (v: string) => (
+        <Tag color={v === 'A' ? 'blue' : v === 'HK' ? 'purple' : 'green'} style={{ borderRadius: 4, border: 'none' }}>
+          {MARKET_LABELS[v] || v}
+        </Tag>
+      ),
     },
-    { title: '占比', dataIndex: 'weight', width: 80, render: (v: number) => `${v.toFixed(1)}%` },
+    { title: '代码', dataIndex: 'code', width: 85 },
+    { title: '名称', dataIndex: 'name', width: 110 },
+    { title: '持仓', dataIndex: 'quantity', width: 70, render: (v: number) => <span style={{ fontWeight: 500, color: '#1a1a2e' }}>{v}</span> },
+    { title: '成本', dataIndex: 'cost_price', width: 85, render: (v: number) => v?.toFixed(2) ?? '-', align: 'right' as const },
+    { title: '现价', dataIndex: 'current_price', width: 85, render: (v: number) => v?.toFixed(2) ?? '-', align: 'right' as const },
+    { title: '市值', dataIndex: 'market_value', width: 95, render: (v: number) => v?.toFixed(2) ?? '-', align: 'right' as const },
+    {
+      title: '盈亏', dataIndex: 'profit_pct', width: 85,
+      render: (v: number) => v != null
+        ? <Tag color={v >= 0 ? 'red' : 'green'} icon={v >= 0 ? <RiseOutlined /> : <FallOutlined />} style={{ borderRadius: 4 }}>
+            {v >= 0 ? '+' : ''}{v.toFixed(2)}%
+          </Tag>
+        : '-',
+    },
+    { title: '占比', dataIndex: 'weight', width: 70, render: (v: number) => v != null ? `${v.toFixed(1)}%` : '-', align: 'right' as const },
   ];
 
   return (
     <div>
-      <Space style={{ marginBottom: 16 }}>
-        <Button type="primary" icon={<ReloadOutlined />} loading={loading} onClick={load}>加载持仓</Button>
-        <Button icon={<PlusOutlined />} onClick={() => setModalOpen(true)}>添加</Button>
-      </Space>
-      {error && <Alert type="error" message={error} showIcon style={{ marginBottom: 16 }} />}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+        <div>
+          <Text strong style={{ fontSize: 20, color: '#1a1a2e', letterSpacing: '-0.3px' }}>持仓管理</Text>
+          <Text type="secondary" style={{ display: 'block', fontSize: 13, marginTop: 2 }}>资产概览与盈亏跟踪</Text>
+        </div>
+        <Space>
+          <Select
+            value={filterMarket}
+            onChange={setFilterMarket}
+            options={[
+              { value: '', label: '全市场' },
+              { value: 'A', label: '🇨🇳 A股' },
+              { value: 'HK', label: '🇭🇰 港股' },
+              { value: 'US', label: '🇺🇸 美股' },
+            ]}
+            style={{ width: 110 }}
+          />
+          <Button icon={<PlusOutlined />} onClick={() => setModalOpen(true)}>添加</Button>
+          <Button type="primary" icon={<ReloadOutlined />} loading={loading} onClick={load}>刷新</Button>
+        </Space>
+      </div>
+      {error && <Alert type="error" message={error} showIcon style={{ marginBottom: 16 }} closable onClose={() => setError('')} />}
 
-      {data && (
+      {loading ? (
+        <div style={{ textAlign: 'center', padding: 80 }}>
+          <div className="loading-breathe" style={{ marginBottom: 16 }}>
+            <div className="dot-pulse" style={{ margin: '0 auto' }} />
+          </div>
+          <Text className="loading-text" style={{ fontSize: 13 }}>正在加载持仓...</Text>
+        </div>
+      ) : data ? (
         <>
           <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
-            <Col xs={8}><Card><Statistic title="总市值" value={data.total_market_value} precision={2} /></Card></Col>
-            <Col xs={8}><Card><Statistic title="总收益" value={data.total_profit} precision={2}
-              valueStyle={{ color: data.total_profit >= 0 ? '#ff4d4d' : '#00d4aa' }}
-              suffix={<span style={{ fontSize: 14 }}>({data.total_profit_pct >= 0 ? '+' : ''}{data.total_profit_pct.toFixed(2)}%)</span>}
-            /></Card></Col>
-            <Col xs={8}><Card><Statistic title="风险评分" value={data.risk_score} suffix="/100"
-              valueStyle={{ color: data.risk_score > 60 ? '#ff4d4d' : data.risk_score > 30 ? '#ffc107' : '#00d4aa' }}
-            /></Card></Col>
+            <Col xs={12} sm={6}>
+              <Card className="stat-card" size="small">
+                <Statistic title={<span style={{ color: '#64748b' }}>总市值</span>} value={data.total_market_value} precision={2}
+                  prefix={<WalletOutlined style={{ opacity: 0.4, marginRight: 4, color: '#f5642a' }} />}
+                  valueStyle={{ color: '#1a1a2e', fontWeight: 600, fontSize: 22 }}
+                />
+              </Card>
+            </Col>
+            <Col xs={12} sm={6}>
+              <Card className="stat-card" size="small">
+                <Statistic title={<span style={{ color: '#64748b' }}>总收益</span>} value={data.total_profit} precision={2}
+                  valueStyle={{
+                    color: data.total_profit >= 0 ? '#e53935' : '#43a047',
+                    fontWeight: 600, fontSize: 22,
+                  }}
+                  suffix={<span style={{ fontSize: 14, color: data.total_profit_pct >= 0 ? '#e53935' : '#43a047' }}>
+                    ({data.total_profit_pct >= 0 ? '+' : ''}{data.total_profit_pct?.toFixed(2) ?? '0.00'}%)
+                  </span>}
+                />
+              </Card>
+            </Col>
+            <Col xs={12} sm={6}>
+              <Card className="stat-card" size="small">
+                <Statistic title={<span style={{ color: '#64748b' }}>风险评分</span>} value={data.risk_score} suffix="/100"
+                  valueStyle={{
+                    color: data.risk_score > 60 ? '#e53935' : data.risk_score > 30 ? '#f9a825' : '#43a047',
+                    fontWeight: 600, fontSize: 22,
+                  }}
+                />
+              </Card>
+            </Col>
+            <Col xs={12} sm={6}>
+              <Card className="stat-card" size="small"
+                title={<span style={{ fontSize: 13, color: '#64748b' }}>市场分布</span>}>
+                {Object.keys(marketStats).length > 0 ? Object.entries(marketStats).map(([m, s]: any) => {
+                  const tagColor = m === 'A' ? 'blue' : m === 'HK' ? 'purple' : 'green';
+                  return (
+                    <div key={m} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13, padding: '2px 0' }}>
+                      <Tag color={tagColor} style={{ borderRadius: 4, border: 'none' }}>{MARKET_LABELS[m] || m}</Tag>
+                      <span style={{ color: '#64748b' }}>{s.count} 只 / ${s.value.toFixed(0)}</span>
+                    </div>
+                  );
+                }) : <Text type="secondary">无持仓</Text>}
+              </Card>
+            </Col>
           </Row>
-          {data.suggestion && <Alert type="info" message={data.suggestion} showIcon style={{ marginBottom: 16 }} />}
-          <Card title="持仓明细">
-            <Table dataSource={data.positions} columns={columns} rowKey="code" pagination={false} size="small" />
+          {data.suggestion && (
+            <Alert type="info" message={<span><strong style={{ color: '#1e88e5' }}>建议：</strong>{data.suggestion}</span>} showIcon style={{ marginBottom: 16 }} closable />
+          )}
+          <Card className="glass-card" title={<span style={{ fontSize: 15, fontWeight: 600 }}>持仓明细 ({filteredPositions.length} 只)</span>}>
+            {filteredPositions.length > 0 ? (
+              <Table dataSource={filteredPositions} columns={columns} rowKey="code" pagination={false} size="small" />
+            ) : (
+              <Empty description={filterMarket ? '该市场暂无持仓' : '暂无持仓，点击"添加"按钮添加'} />
+            )}
           </Card>
         </>
+      ) : (
+        <Card className="glass-card"><Empty description="点击「刷新持仓」加载数据" /></Card>
       )}
-      <Modal title="添加持仓" open={modalOpen} onOk={add} onCancel={() => setModalOpen(false)}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <Input placeholder="股票代码" value={form.code} onChange={e => setForm({ ...form, code: e.target.value })} />
-          <InputNumber placeholder="数量" value={form.quantity} min={1} onChange={v => setForm({ ...form, quantity: v || 0 })} style={{ width: '100%' }} />
-          <InputNumber placeholder="成本价" value={form.cost_price} min={0} step={0.01} onChange={v => setForm({ ...form, cost_price: v || 0 })} style={{ width: '100%' }} />
+
+      <Modal title="添加持仓" open={modalOpen} onOk={add} onCancel={() => setModalOpen(false)}
+        okText="添加" cancelText="取消">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 8 }}>
+          <Input placeholder="股票代码 (例: 600519 / TSLA / 00700.HK)" value={form.code}
+            onChange={e => setForm({ ...form, code: e.target.value })} />
+          <Select value={form.market} onChange={v => setForm({ ...form, market: v })}
+            options={[
+              { value: '', label: '自动检测 (推荐)' },
+              { value: 'A', label: '🇨🇳 A股' },
+              { value: 'HK', label: '🇭🇰 港股' },
+              { value: 'US', label: '🇺🇸 美股' },
+            ]} style={{ width: '100%' }} placeholder="选择市场（可选）" />
+          <InputNumber placeholder="数量" value={form.quantity} min={1}
+            onChange={v => setForm({ ...form, quantity: v || 0 })} style={{ width: '100%' }} />
+          <InputNumber placeholder="成本价" value={form.cost_price} min={0} step={0.01}
+            onChange={v => setForm({ ...form, cost_price: v || 0 })} style={{ width: '100%' }} />
         </div>
       </Modal>
     </div>

@@ -21,8 +21,8 @@ export const api = {
 
   // 持仓
   getPortfolio: () => request<any>('/portfolio'),
-  addPosition: (code: string, quantity: number, cost_price: number, name?: string) =>
-    request<any>(`/portfolio/positions?code=${code}&quantity=${quantity}&cost_price=${cost_price}&name=${name || ''}`, { method: 'POST' }),
+  addPosition: (code: string, quantity: number, cost_price: number, name?: string, market?: string) =>
+    request<any>(`/portfolio/positions?code=${code}&quantity=${quantity}&cost_price=${cost_price}&name=${name || ''}${market ? `&market=${market}` : ''}`, { method: 'POST' }),
   removePosition: (code: string, quantity?: number) =>
     request<any>(`/portfolio/positions/${code}${quantity ? `?quantity=${quantity}` : ''}`, { method: 'DELETE' }),
 

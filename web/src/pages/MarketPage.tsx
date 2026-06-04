@@ -1,80 +1,145 @@
-import { useState } from 'react';
-import { Card, Button, Row, Col, Statistic, Spin, Tag, Alert, Typography, Space } from 'antd';
-import { ReloadOutlined } from '@ant-design/icons';
+import { useState, useEffect } from 'react';
+import { Card, Button, Row, Col, Spin, Tag, Typography, Space, Empty, Divider } from 'antd';
+import { ReloadOutlined, RiseOutlined, FallOutlined } from '@ant-design/icons';
 import { api } from '../api';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
+
+function IndexSection() {
+  const [items, setItems] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api.marketReview().then(d => setItems(d.indices || [])).finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <Card className="glass-card" title="📈 主要指数"><Spin /></Card>;
+  return (
+    <Card className="glass-card" title={<span style={{ fontSize: 15, fontWeight: 600 }}>📈 主要指数</span>}>
+      {items.length > 0 ? items.map((i: any, idx: number) => {
+        const isUp = i.change_pct >= 0;
+        return (
+          <div key={i.name} style={{
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            padding: '10px 0',
+            borderBottom: idx < items.length - 1 ? '1px solid rgba(0,0,0,0.04)' : 'none',
+          }}>
+            <span style={{ color: '#64748b', fontSize: 14 }}>{i.name}</span>
+            <Space size={8}>
+              <span style={{ color: '#1a1a2e', fontWeight: 500 }}>{i.price}</span>
+              <Tag color={isUp ? 'red' : 'green'} style={{ margin: 0, fontSize: 13, padding: '0 8px', lineHeight: '22px', borderRadius: 4 }}
+                icon={isUp ? <RiseOutlined /> : <FallOutlined />}>
+                {isUp ? '+' : ''}{i.change_pct}%
+              </Tag>
+            </Space>
+          </div>
+        );
+      }) : <Empty description="暂无指数数据" />}
+    </Card>
+  );
+}
+
+function NorthboundSection() {
+  const [item, setItem] = useState<any | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api.marketReview().then(d => setItem(d.northbound || null)).finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <Card className="glass-card" title="🔄 北向资金" style={{ marginTop: 16 }}><Spin /></Card>;
+  const isInflow = item?.total_net >= 0;
+  return (
+    <Card className="glass-card" title={<span style={{ fontSize: 15, fontWeight: 600 }}>🔄 北向资金</span>} style={{ marginTop: 16 }}>
+      {item ? (
+        <div style={{ textAlign: 'center', padding: '8px 0' }}>
+          <Text type="secondary" style={{ fontSize: 13, display: 'block', marginBottom: 4 }}>合计净流入</Text>
+          <span style={{
+            fontSize: 28, fontWeight: 700,
+            color: isInflow ? '#e53935' : '#43a047',
+          }}>
+            {isInflow ? '+' : ''}{item.total_net}
+            <span style={{ fontSize: 14, fontWeight: 400, marginLeft: 4, opacity: 0.5 }}>亿</span>
+          </span>
+          <Divider style={{ borderColor: 'rgba(0,0,0,0.04)', margin: '12px 0 0' }} />
+        </div>
+      ) : <Text type="secondary">暂无数据</Text>}
+    </Card>
+  );
+}
+
+function TopSectorsSection() {
+  const [items, setItems] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api.marketReview().then(d => setItems(d.top_sectors || [])).finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <Card className="glass-card" title={<span style={{ fontSize: 15, fontWeight: 600 }}>🟢 领涨板块</span>}><Spin /></Card>;
+  return (
+    <Card className="glass-card" title={<span style={{ fontSize: 15, fontWeight: 600 }}>🟢 领涨板块</span>}>
+      {items.length > 0 ? items.slice(0, 8).map((s: any, idx: number) => (
+        <div key={s.name} style={{
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          padding: '7px 0',
+          borderBottom: idx < Math.min(items.length, 8) - 1 ? '1px solid rgba(0,0,0,0.04)' : 'none',
+        }}>
+          <span style={{ color: '#64748b', fontSize: 13 }}>{s.name}</span>
+          <Tag color="red" style={{ margin: 0, fontSize: 12, borderRadius: 4 }} icon={<RiseOutlined />}>+{s.change_pct}%</Tag>
+        </div>
+      )) : <Empty description="暂无板块数据" />}
+    </Card>
+  );
+}
+
+function FallSectorsSection() {
+  const [items, setItems] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api.marketReview().then(d => setItems(d.fall_sectors || [])).finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <Card className="glass-card" title={<span style={{ fontSize: 15, fontWeight: 600 }}>🔴 领跌板块</span>} style={{ marginTop: 16 }}><Spin /></Card>;
+  return (
+    <Card className="glass-card" title={<span style={{ fontSize: 15, fontWeight: 600 }}>🔴 领跌板块</span>} style={{ marginTop: 16 }}>
+      {items.length > 0 ? items.slice(0, 8).map((s: any, idx: number) => (
+        <div key={s.name} style={{
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          padding: '7px 0',
+          borderBottom: idx < Math.min(items.length, 8) - 1 ? '1px solid rgba(0,0,0,0.04)' : 'none',
+        }}>
+          <span style={{ color: '#64748b', fontSize: 13 }}>{s.name}</span>
+          <Tag color="green" style={{ margin: 0, fontSize: 12, borderRadius: 4 }} icon={<FallOutlined />}>{s.change_pct}%</Tag>
+        </div>
+      )) : <Empty description="暂无板块数据" />}
+    </Card>
+  );
+}
 
 export default function MarketPage() {
-  const [loading, setLoading] = useState(false);
-  const [data, setData] = useState<any>(null);
-  const [error, setError] = useState('');
-
-  const run = async () => {
-    setLoading(true); setError('');
-    try {
-      const d = await api.marketReview();
-      setData(d);
-    } catch (e: any) { setError(e.message); }
-    finally { setLoading(false); }
-  };
+  const [key, setKey] = useState(0);
 
   return (
-    <div>
-      <Space style={{ marginBottom: 16 }}>
-        <Button type="primary" icon={<ReloadOutlined />} loading={loading} onClick={run}>大盘复盘</Button>
-      </Space>
-      {error && <Alert type="error" message={error} showIcon style={{ marginBottom: 16 }} />}
-
-      {data && (
-        <Row gutter={[16, 16]}>
-          <Col xs={24} md={12}>
-            <Card title="📈 主要指数">
-              {data.indices?.map((i: any) => (
-                <div key={i.name} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #1e3a5f' }}>
-                  <span>{i.name}</span>
-                  <span style={{ color: i.change_pct >= 0 ? '#ff4d4d' : '#00d4aa', fontWeight: 600 }}>
-                    {i.price} ({i.change_pct >= 0 ? '+' : ''}{i.change_pct}%)
-                  </span>
-                </div>
-              ))}
-            </Card>
-            <Card title="🔄 北向资金" style={{ marginTop: 16 }}>
-              {data.northbound ? (
-                <Statistic
-                  title="合计净流入"
-                  value={data.northbound.total_net}
-                  suffix="亿"
-                  valueStyle={{ color: data.northbound.total_net >= 0 ? '#ff4d4d' : '#00d4aa' }}
-                />
-              ) : <Text type="secondary">暂无数据</Text>}
-            </Card>
-          </Col>
-          <Col xs={24} md={12}>
-            <Card title="🟢 领涨板块">
-              {data.top_sectors?.slice(0, 8).map((s: any) => (
-                <div key={s.name} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #1e3a5f' }}>
-                  <span>{s.name}</span> <Tag color="red">+{s.change_pct}%</Tag>
-                </div>
-              ))}
-            </Card>
-            <Card title="🔴 领跌板块" style={{ marginTop: 16 }}>
-              {data.fall_sectors?.slice(0, 8).map((s: any) => (
-                <div key={s.name} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #1e3a5f' }}>
-                  <span>{s.name}</span> <Tag color="green">{s.change_pct}%</Tag>
-                </div>
-              ))}
-            </Card>
-          </Col>
-          {data.llm_analysis && (
-            <Col span={24}>
-              <Card title="🤖 AI 分析">
-                <pre style={{ whiteSpace: 'pre-wrap', fontSize: 13 }}>{JSON.stringify(data.llm_analysis, null, 2)}</pre>
-              </Card>
-            </Col>
-          )}
-        </Row>
-      )}
+    <div key={key}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+        <div>
+          <Text strong style={{ fontSize: 20, color: '#1a1a2e', letterSpacing: '-0.3px' }}>大盘复盘</Text>
+          <Text type="secondary" style={{ display: 'block', fontSize: 13, marginTop: 2 }}>市场概览与资金流向</Text>
+        </div>
+        <Button type="primary" icon={<ReloadOutlined />} onClick={() => setKey(k => k + 1)}>刷新复盘</Button>
+      </div>
+      <Row gutter={[16, 16]}>
+        <Col xs={24} md={12}>
+          <IndexSection />
+          <NorthboundSection />
+        </Col>
+        <Col xs={24} md={12}>
+          <TopSectorsSection />
+          <FallSectorsSection />
+        </Col>
+      </Row>
     </div>
   );
 }
