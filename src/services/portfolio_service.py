@@ -16,6 +16,14 @@ logger = logging.getLogger(__name__)
 PORTFOLIO_FILE = "data/portfolio.json"
 
 
+def _is_number(s: str) -> bool:
+    try:
+        float(s)
+        return True
+    except (ValueError, TypeError):
+        return False
+
+
 def _detect_market(code: str) -> str:
     """根据股票代码判断市场 A / HK / US"""
     code = code.strip().upper()
@@ -97,6 +105,31 @@ class PortfolioService:
                 "quantity": quantity, "cost_price": cost_price,
             }
         self.save()
+
+    def import_positions(self, text: str) -> Dict[str, object]:
+        """批量导入持仓。每行格式: 代码,数量,成本价[,名称]
+        分隔符支持逗号/制表符/空格，自动跳过空行与表头。"""
+        import re
+
+        imported, errors = 0, []
+        for lineno, raw in enumerate(text.splitlines(), 1):
+            line = raw.strip()
+            if not line:
+                continue
+            parts = [p for p in re.split(r"[,\t]|\s{2,}|\s+", line) if p]
+            # 数据行的数量字段必为数字；非数字行（表头/说明/空白）静默跳过
+            if len(parts) < 3 or not _is_number(parts[1]):
+                continue
+            try:
+                code = parts[0].strip().upper()
+                quantity = int(float(parts[1]))
+                cost_price = float(parts[2])
+                name = parts[3] if len(parts) > 3 else ""
+                self.add_position(code, quantity, cost_price, name)
+                imported += 1
+            except (ValueError, IndexError):
+                errors.append(f"第{lineno}行: 解析失败 '{line}'")
+        return {"imported": imported, "errors": errors}
 
     def remove_position(self, code: str, quantity: Optional[int] = None) -> None:
         """减仓或清仓"""

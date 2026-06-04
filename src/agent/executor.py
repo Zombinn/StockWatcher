@@ -26,6 +26,11 @@ STRATEGIES = {
     "预期": "基于市场预期的估值分析",
     "技术": "综合 MACD/RSI/KDJ/BOLL 技术指标",
     "资金": "分析主力资金流向和筹码分布",
+    "威科夫": "基于威科夫方法分析吸筹/派发阶段与量价关系",
+    "期望重估": "评估业绩超预期/不及预期带来的估值重估空间",
+    "龙头": "判断板块龙头地位、卡位与梯队晋级逻辑",
+    "量价": "分析量价配合、放量突破与缩量回踩有效性",
+    "风控": "评估回撤风险、止损位与仓位管理建议",
 }
 
 _AGENT_SYSTEM_PROMPT = """你是一位资深股票投资顾问。请根据用户的问题和提供的技术数据，给出专业的分析和建议。
@@ -117,6 +122,10 @@ class StockAgent:
         session.messages.append(AgentMessage(role="user", content=message))
         session.updated_at = datetime.now().isoformat()
 
+        # 事件/热点策略需要真实新闻支撑，按需拉取并缓存到会话
+        if strategy in ("事件", "热点") and "news" not in session.context:
+            await self._load_news(session)
+
         if not self.llm_client:
             return self._fallback_reply(session, message, strategy)
 
@@ -162,7 +171,28 @@ class StockAgent:
         if strategy and strategy in STRATEGIES:
             lines.append(f"\n分析策略: {strategy} - {STRATEGIES[strategy]}")
 
+        news = ctx.get("news") or []
+        if news:
+            lines.append("\n近期相关新闻:")
+            for n in news[:5]:
+                title = n.get("title", "")
+                t = n.get("publish_time", "")
+                lines.append(f"- {title}（{t}）")
+
         return "\n".join(lines)
+
+    async def _load_news(self, session: AgentSession) -> None:
+        """拉取个股新闻写入会话上下文（失败置空列表，避免重复请求）"""
+        from src.data_provider.news_fetcher import get_stock_news
+        try:
+            items = await get_stock_news(session.stock_code, limit=8)
+            session.context["news"] = [
+                {"title": i.title, "publish_time": i.publish_time, "source": i.source}
+                for i in items
+            ]
+        except Exception as e:
+            logger.warning("加载新闻失败: %s", e)
+            session.context["news"] = []
 
     def _fallback_reply(self, session: AgentSession, message: str, strategy: str = "") -> str:
         """无 LLM 时的模板化回复"""

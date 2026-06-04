@@ -4,10 +4,11 @@ from __future__ import annotations
 import logging
 import os
 from contextlib import asynccontextmanager
+from typing import Optional
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, FileResponse
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from src.config import setup_env, get_config
@@ -47,30 +48,34 @@ web_dist = os.path.join(os.path.dirname(__file__), "web", "dist")
 index_html_path = os.path.join(web_dist, "index.html")
 assets_dir = os.path.join(web_dist, "assets")
 
-SPA_HTML: str | None = None
-if os.path.isfile(index_html_path):
-    with open(index_html_path, encoding="utf-8") as f:
-        SPA_HTML = f.read()
+WEB_BUILT = os.path.isfile(index_html_path)
+if WEB_BUILT:
     logger.info("React 前端已挂载: %s", web_dist)
     # 挂载 /assets/ 静态文件
     if os.path.isdir(assets_dir):
         app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
 
 
+def _spa_response():
+    """每次请求实时读取 index.html，前端重新构建后无需重启服务即可生效"""
+    # 禁用缓存，避免浏览器命中已失效的旧 bundle 哈希
+    return FileResponse(index_html_path, headers={"Cache-Control": "no-cache"})
+
+
 @app.get("/web")
 @app.get("/web/{full_path:path}")
 async def serve_spa(full_path: str = ""):
     """SPA 前端页面 — 支持任意前端路由"""
-    if SPA_HTML:
-        return HTMLResponse(SPA_HTML)
+    if WEB_BUILT:
+        return _spa_response()
     return {"error": "前端未构建，请执行 cd web && npm run build"}
 
 
 # ====== 基础 ======
 @app.get("/")
 async def root():
-    if SPA_HTML:
-        return HTMLResponse(SPA_HTML)
+    if WEB_BUILT:
+        return _spa_response()
     return {"service": "StockWatcher", "version": "2.0.0", "status": "running"}
 
 
@@ -82,15 +87,29 @@ async def health():
 # ====== 技术分析 ======
 @app.get("/api/v1/analyze")
 async def analyze():
+    from src.utils.cache import get_cached, set_cached
+    cached = get_cached("analyze", ttl=300)
+    if cached is not None:
+        return cached
     from src.services.analysis_service import AnalysisService
     from src.formatters import format_analysis_report, format_short_notification
     service = AnalysisService(config)
     results = await service.full_analysis()
     report = format_analysis_report(results)
     summaries = {}
-    for code, result in results.items():
-        summaries[code] = format_short_notification(result)
-    return {"success": True, "count": len(results), "report": report, "summaries": summaries}
+    stocks = []
+    for code, r in results.items():
+        summaries[code] = format_short_notification(r)
+        stocks.append({
+            "code": code, "name": r.name, "price": r.current_price,
+            "change_pct": r.change_pct, "score": r.score, "trend": r.trend,
+            "signal": r.signal, "risk": r.risk_level, "suggestion": r.suggestion,
+            "support": r.support, "resistance": r.resistance,
+        })
+    stocks.sort(key=lambda s: s["score"], reverse=True)
+    payload = {"success": True, "count": len(results), "stocks": stocks, "report": report, "summaries": summaries}
+    set_cached("analyze", payload)
+    return payload
 
 
 @app.get("/api/v1/stocks/{code}")
@@ -158,48 +177,37 @@ async def search_recommend(market: str = "cn", limit: int = 6):
 
 @app.get("/api/v1/search/suggest")
 async def search_suggest(q: str = "", market: str = "cn", limit: int = 8):
-    """智能搜索建议 — 支持代码/名称模糊匹配"""
-    from src.services.analysis_service import AnalysisService
-    query = q.strip().upper()
-    if not query:
+    """智能搜索建议 — 支持代码/名称/拼音(全拼+首字母)模糊匹配"""
+    if not q.strip():
         return await search_recommend(market, limit)
-
-    # Known stock map for quick lookup
-    STOCK_MAP = {
-        # A 股
-        "600519": ("600519", "贵州茅台", "cn"),
-        "000001": ("000001", "平安银行", "cn"), "000858": ("000858", "五粮液", "cn"),
-        "600036": ("600036", "招商银行", "cn"), "601318": ("601318", "中国平安", "cn"),
-        "300750": ("300750", "宁德时代", "cn"), "002594": ("002594", "比亚迪", "cn"),
-        "600276": ("600276", "恒瑞医药", "cn"), "000333": ("000333", "美的集团", "cn"),
-        "002415": ("002415", "海康威视", "cn"), "601012": ("601012", "隆基绿能", "cn"),
-        "600887": ("600887", "伊利股份", "cn"),
-        # 港股
-        "0700.HK": ("0700.HK", "腾讯控股", "hk"), "9988.HK": ("9988.HK", "阿里巴巴", "hk"),
-        "0999.HK": ("0999.HK", "网易", "hk"), "03690.HK": ("03690.HK", "美团", "hk"),
-        "1810.HK": ("1810.HK", "小米集团", "hk"),
-        # 美股
-        "AAPL": ("AAPL", "Apple", "us"), "TSLA": ("TSLA", "Tesla", "us"),
-        "MSFT": ("MSFT", "Microsoft", "us"), "AMZN": ("AMZN", "Amazon", "us"),
-        "GOOGL": ("GOOGL", "Alphabet", "us"), "NVDA": ("NVDA", "NVIDIA", "us"),
-        "META": ("META", "Meta", "us"), "AMD": ("AMD", "AMD", "us"),
-    }
-
-    results = []
-    for code, (c, name, m) in STOCK_MAP.items():
-        if market != "all" and m != market:
-            continue
-        if query in code or query in name.upper():
-            results.append({"code": c, "name": name, "market": m})
-        if len(results) >= limit:
-            break
-
-    # If no local match, try canonical stock code normalization
-    if not results:
-        # Try to get info from provider
-        pass
-
+    from src.services.stock_search import search_stocks
+    results = search_stocks(q, market, limit)
     return {"success": True, "data": results}
+
+
+# ====== 个股新闻 ======
+@app.get("/api/v1/stocks/{code}/news")
+async def stock_news(code: str, limit: int = 10):
+    """获取个股相关新闻/资讯"""
+    from src.data_provider.news_fetcher import get_stock_news
+    items = await get_stock_news(code, limit)
+    return {"success": True, "count": len(items), "data": [i.__dict__ for i in items]}
+
+
+# ====== 交易日历 ======
+@app.get("/api/v1/market/trading-day")
+async def trading_day(date: str = ""):
+    """交易日/节假日判断（不传 date 默认今天）"""
+    from src.utils import trading_calendar as tc
+    d = date or None
+    return {
+        "success": True,
+        "date": date or str(__import__("datetime").date.today()),
+        "is_trading_day": tc.is_trading_day(d),
+        "next_trading_day": str(tc.next_trading_day(d)),
+        "prev_trading_day": str(tc.prev_trading_day(d)),
+        "recent_trading_days": tc.recent_trading_days(5, d),
+    }
 
 
 # ====== LLM 解读 ======
@@ -223,10 +231,14 @@ async def analyze_with_llm(code: str):
 # ====== 大盘复盘 ======
 @app.get("/api/v1/market/review")
 async def market_review():
+    from src.utils.cache import get_cached, set_cached
+    cached = get_cached("market_review", ttl=300)
+    if cached is not None:
+        return cached
     from src.core.market_review import MarketReviewer
     reviewer = MarketReviewer()
     result = await reviewer.review()
-    return {
+    payload = {
         "success": True,
         "indices": [i.__dict__ for i in result.indices],
         "top_sectors": [s.__dict__ for s in result.top_sectors[:5]],
@@ -236,6 +248,8 @@ async def market_review():
         "llm_analysis": result.llm_analysis,
         "timestamp": result.timestamp,
     }
+    set_cached("market_review", payload)
+    return payload
 
 
 # ====== 持仓管理 ======
@@ -274,6 +288,77 @@ async def add_position(code: str = Query(...), quantity: int = Query(...), cost_
     service = PortfolioService()
     service.add_position(code, quantity, cost_price, name, market)
     return {"success": True, "message": f"已添加 {code} 持仓"}
+
+
+@app.post("/api/v1/portfolio/import")
+async def import_positions(payload: dict):
+    """批量导入持仓 — 支持 CSV/Excel/剪贴板粘贴的文本（每行: 代码,数量,成本价[,名称]）"""
+    from src.services.portfolio_service import PortfolioService
+    text = (payload or {}).get("text", "")
+    if not text.strip():
+        raise HTTPException(400, "导入内容为空")
+    service = PortfolioService()
+    result = service.import_positions(text)
+    result["success"] = True
+    return result
+
+
+# ====== 代码下拉（自选 + 持仓去重） ======
+@app.get("/api/v1/symbols")
+async def get_symbols():
+    """自选股 + 持仓去重后的股票代码，供输入框下拉选择（仅读文件，快速）"""
+    from src.services.watchlist_service import WatchlistService
+    from src.services.portfolio_service import PortfolioService, _detect_market
+    merged: dict = {}
+    for code in WatchlistService().get_codes():
+        cu = code.strip().upper()
+        if cu:
+            merged[cu] = {"code": cu, "name": "", "market": _detect_market(cu), "source": "watchlist"}
+    for code, pos in PortfolioService()._positions.items():
+        cu = code.strip().upper()
+        name = pos.get("name") or ""
+        if cu in merged:
+            if name:
+                merged[cu]["name"] = name
+            merged[cu]["source"] = "both"
+        else:
+            merged[cu] = {"code": cu, "name": name, "market": pos.get("market") or _detect_market(cu), "source": "portfolio"}
+    return {"success": True, "count": len(merged), "data": list(merged.values())}
+
+
+# ====== 自选股 ======
+@app.get("/api/v1/watchlist")
+async def get_watchlist():
+    from src.services.watchlist_service import WatchlistService
+    from src.utils.cache import get_cached, set_cached
+    cached = get_cached("watchlist", ttl=60)
+    if cached is not None:
+        return cached
+    service = WatchlistService()
+    quotes = await service.get_quotes()
+    payload = {"success": True, "count": len(quotes), "data": quotes}
+    set_cached("watchlist", payload)
+    return payload
+
+
+@app.post("/api/v1/watchlist")
+async def add_watchlist(code: str = Query(...)):
+    from src.services.watchlist_service import WatchlistService
+    from src.utils.cache import drop
+    service = WatchlistService()
+    added = service.add(code)
+    drop("analyze"); drop("watchlist")  # 自选股变更后让分析/自选缓存失效
+    return {"success": True, "added": added, "codes": service.get_codes()}
+
+
+@app.delete("/api/v1/watchlist/{code}")
+async def remove_watchlist(code: str):
+    from src.services.watchlist_service import WatchlistService
+    from src.utils.cache import drop
+    service = WatchlistService()
+    removed = service.remove(code)
+    drop("analyze"); drop("watchlist")
+    return {"success": True, "removed": removed, "codes": service.get_codes()}
 
 
 @app.delete("/api/v1/portfolio/positions/{code}")

@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Input, Button, Spin, Typography, Tag, Alert, Space } from 'antd';
 import { SendOutlined, RobotOutlined, UserOutlined, ClearOutlined, BulbOutlined } from '@ant-design/icons';
 import { api } from '../api';
+import SymbolSelect from '../components/SymbolSelect';
 
 const { Text } = Typography;
 
@@ -11,7 +12,6 @@ interface Message {
   code?: string;
 }
 
-const stockTags = ['AAPL', 'TSLA', '000001', '600519', '0700.HK'];
 const quickQuestions = ['技术面分析', 'MACD 信号', '估值如何', '支撑压力'];
 
 export default function AgentPanel() {
@@ -133,19 +133,11 @@ export default function AgentPanel() {
         display: 'flex', flexDirection: 'column', gap: 10,
         flexShrink: 0,
       }}>
-        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
-          {stockTags.map(s => (
-            <Tag key={s} color={code === s ? 'orange' : 'default'}
-              style={{ cursor: 'pointer', fontSize: 13, lineHeight: '24px', padding: '0 10px', margin: 0, borderRadius: 4 }}
-              onClick={() => setCode(s)}>{s}</Tag>
-          ))}
-          <Input placeholder="代码" size="small" value={code}
-            onChange={e => setCode(e.target.value)}
-            style={{ width: 100, height: 32, fontSize: 14, borderRadius: 6 }} />
-        </div>
-        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+        <SymbolSelect value={code} onChange={setCode}
+          placeholder="股票代码（可下拉选择自选/持仓）" style={{ width: '100%' }} />
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
           {quickQuestions.map(q => (
-            <Tag key={q} style={{ cursor: 'pointer', fontSize: 12, lineHeight: '22px', borderRadius: 4, margin: 0, padding: '0 8px', color: '#f5642a', background: 'rgba(245,100,42,0.06)', border: '1px solid rgba(245,100,42,0.12)' }}
+            <Tag key={q} style={{ cursor: 'pointer', fontSize: 12, lineHeight: '24px', borderRadius: 4, margin: 0, padding: '0 8px', width: '100%', textAlign: 'center', color: '#f5642a', background: 'rgba(245,100,42,0.06)', border: '1px solid rgba(245,100,42,0.12)' }}
               icon={<BulbOutlined />} onClick={() => setInput(q)}>{q}</Tag>
           ))}
         </div>

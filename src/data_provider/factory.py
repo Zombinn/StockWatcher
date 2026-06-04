@@ -59,6 +59,20 @@ def _create_provider(name: str) -> BaseDataProvider:
         from src.config import get_config
         return FinnhubProvider(get_config().finnhub_api_key)
 
+    if name == "baostock":
+        from .baostock_fetcher import BaostockProvider
+        return BaostockProvider()
+
+    if name == "pytdx":
+        from .pytdx_fetcher import PytdxProvider
+        return PytdxProvider()
+
+    if name == "longbridge":
+        from .longbridge_fetcher import LongbridgeProvider
+        if not _has_token("LONGPORT_APP_KEY"):
+            raise ValueError("未配置 LONGPORT_APP_KEY")
+        return LongbridgeProvider()
+
     raise ValueError(f"未知数据提供者: {name}")
 
 
@@ -74,7 +88,7 @@ def get_provider_for_code(code: str) -> BaseDataProvider:
     is_us = code.endswith(".US") or (code.isalpha() and len(code) <= 5)
 
     if is_us or is_hk:
-        # 港股/美股降级链: YFinance > Finnhub
+        # 港股/美股降级链: YFinance > Finnhub > Longbridge
         try:
             return get_provider("yfinance")
         except Exception as e:
@@ -84,6 +98,11 @@ def get_provider_for_code(code: str) -> BaseDataProvider:
                 return get_provider("finnhub")
             except Exception as e:
                 logger.debug("Finnhub 不可用: %s", e)
+        if _has_token("LONGPORT_APP_KEY"):
+            try:
+                return get_provider("longbridge")
+            except Exception as e:
+                logger.debug("Longbridge 不可用: %s", e)
         return get_provider("yfinance")
 
     # A 股降级链: AkShare > Tushare > TickFlow
@@ -103,5 +122,12 @@ def get_provider_for_code(code: str) -> BaseDataProvider:
             return get_provider("tickflow")
         except Exception as e:
             logger.debug("TickFlow 不可用: %s", e)
+
+    # 无 token 的本地降级源: Baostock > Pytdx（需对应依赖已安装）
+    for fallback in ("baostock", "pytdx"):
+        try:
+            return get_provider(fallback)
+        except Exception as e:
+            logger.debug("%s 不可用: %s", fallback, e)
 
     return get_provider("akshare")

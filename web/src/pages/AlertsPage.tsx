@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Card, Button, Table, Tag, Alert, Modal, Input, Select, InputNumber, Space, Statistic, Row, Col, Spin, Empty, Typography } from 'antd';
+import { Card, Button, Table, Tag, Alert, Modal, Select, InputNumber, Space, Statistic, Row, Col, Spin, Empty, Typography } from 'antd';
 import { ReloadOutlined, PlusOutlined, DeleteOutlined, CheckOutlined, BellOutlined } from '@ant-design/icons';
 import { api } from '../api';
+import SymbolSelect from '../components/SymbolSelect';
 
 const { Text } = Typography;
 
@@ -120,7 +121,7 @@ export default function AlertsPage() {
       <Modal title="添加告警规则" open={modalOpen} onOk={add} onCancel={() => setModalOpen(false)}
         okText="添加" cancelText="取消">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 8 }}>
-          <Input placeholder="股票代码" value={form.code} onChange={e => setForm({ ...form, code: e.target.value })} />
+          <SymbolSelect value={form.code} onChange={v => setForm({ ...form, code: v })} />
           <Select value={form.rule_type} onChange={v => setForm({ ...form, rule_type: v })} options={ruleTypes} />
           <InputNumber placeholder="阈值" value={form.threshold} min={0} step={0.1}
             onChange={v => setForm({ ...form, threshold: v || 0 })} style={{ width: '100%' }} />

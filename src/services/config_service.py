@@ -210,6 +210,11 @@ class ConfigManager:
 
         env_path.write_text("".join(new_lines), encoding="utf-8")
 
+        # 同步更新进程环境变量：load_dotenv(override=False) 不会覆盖已存在的 os.environ，
+        # 否则保存后读到的仍是启动时的旧值（表现为「自选股被重置」）
+        for key, value in updates.items():
+            os.environ[key] = value
+
         # 重新加载配置
         reload_config()
 

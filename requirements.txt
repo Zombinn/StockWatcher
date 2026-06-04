@@ -21,6 +21,10 @@ pypinyin>=0.50.0
 akshare>=1.12.0
 tushare>=1.4.0
 yfinance>=0.2.0
+# 可选数据源（按需安装；未安装时工厂自动跳过）
+# baostock>=0.8.8      # A 股，无 token
+# pytdx>=1.72          # A 股通达信行情，无 token
+# longport>=2.0.0      # 长桥 A/港/美股，需 API 凭证
 
 # LLM
 openai>=1.0.0

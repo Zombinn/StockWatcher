@@ -25,6 +25,20 @@ export const api = {
     request<any>(`/portfolio/positions?code=${code}&quantity=${quantity}&cost_price=${cost_price}&name=${name || ''}${market ? `&market=${market}` : ''}`, { method: 'POST' }),
   removePosition: (code: string, quantity?: number) =>
     request<any>(`/portfolio/positions/${code}${quantity ? `?quantity=${quantity}` : ''}`, { method: 'DELETE' }),
+  importPositions: (text: string) =>
+    request<any>('/portfolio/import', { method: 'POST', body: JSON.stringify({ text }) }),
+
+  // 代码下拉（自选 + 持仓去重）
+  getSymbols: () => request<any>('/symbols'),
+
+  // 自选股
+  getWatchlist: () => request<any>('/watchlist'),
+  addWatchlist: (code: string) => request<any>(`/watchlist?code=${encodeURIComponent(code)}`, { method: 'POST' }),
+  removeWatchlist: (code: string) => request<any>(`/watchlist/${encodeURIComponent(code)}`, { method: 'DELETE' }),
+
+  // 资讯 / 交易日
+  stockNews: (code: string, limit = 10) => request<any>(`/stocks/${code}/news?limit=${limit}`),
+  tradingDay: (date?: string) => request<any>(`/market/trading-day${date ? `?date=${date}` : ''}`),
 
   // 告警
   getAlerts: () => request<any>('/alerts'),

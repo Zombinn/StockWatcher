@@ -12,13 +12,15 @@
 | 技术分析 | MA/MACD/RSI/KDJ/BOLL/ATR/乖离率，综合评分 0-100，买卖信号 |
 | AI 解读 | 接入 LLM（OpenAI/DeepSeek/通义千问）解读技术指标和市场 |
 | 大盘复盘 | 指数行情、板块轮动、北向资金，LLM 自动分析 |
-| 多数据源 | AkShare（A 股，无 token）、YFinance（港股/美股） |
-| 持仓管理 | 实时市值、组合盈亏、行业分布、集中度风险评分、仓位建议 |
+| 多数据源 | AkShare/Tushare/Baostock/Pytdx（A 股）、YFinance/Finnhub（港美）、Longbridge（全市场） |
+| 资讯/新闻 | 个股实时新闻与公告聚合，驱动 Agent 事件/热点策略 |
+| 交易日历 | A 股交易日/节假日识别，下一/上一交易日 |
+| 持仓管理 | 实时市值、组合盈亏、行业分布、集中度风险评分、仓位建议、批量导入(CSV/粘贴) |
 | 告警引擎 | 价格上穿/下穿、涨跌幅、成交量触发，冷却机制 |
-| Agent 问股 | 多轮对话，10 种内置分析策略（均线/缠论/波浪/趋势/热点等） |
+| Agent 问股 | 多轮对话，15 种内置分析策略（均线/缠论/波浪/威科夫/期望重估/龙头等） |
 | 回测引擎 | 均线金叉/MACD/RSI/布林带策略，含胜率/夏普/最大回撤 |
-| Web 仪表盘 | React + Ant Design 暗色主题，6 大功能页面 + 配置管理中心 |
-| 多通道推送 | 企业微信、飞书、Telegram、Discord、Slack |
+| Web 仪表盘 | React + Ant Design，多功能页面 + 配置管理中心 |
+| 多通道推送 | 企业微信、飞书、Telegram、Discord、Slack、邮件(SMTP) |
 | 定时任务 | 每日指定时间自动分析推送 |
 | API 服务 | FastAPI 提供完整 RESTful 接口 |
 
@@ -120,13 +122,16 @@ StockWatcher/
 
 ```
 AkShare（无 token，首选）→ Tushare（需 TUSHARE_TOKEN）→ TickFlow（需 TICKFLOW_API_KEY）
+                        → Baostock / Pytdx（无 token，需 pip install 对应依赖）
 ```
 
 ### 港股/美股降级链
 
 ```
-YFinance（无 token，首选）→ Finnhub（需 FINNHUB_API_KEY）
+YFinance（无 token，首选）→ Finnhub（需 FINNHUB_API_KEY）→ Longbridge（需 LONGPORT_* 凭证）
 ```
+
+> Baostock / Pytdx / Longbridge 为可选数据源：未安装依赖时工厂自动跳过，不影响默认链路。
 
 你无需关心具体使用哪个数据源，系统会自动按优先级尝试，失败自动降级。
 
@@ -146,7 +151,11 @@ YFinance（无 token，首选）→ Finnhub（需 FINNHUB_API_KEY）
 |------|------|------|
 | GET | /api/v1/analyze | 执行全量分析 |
 | GET | /api/v1/market/review | 大盘复盘 |
+| GET | /api/v1/market/trading-day | 交易日/节假日判断 |
+| GET | /api/v1/stocks/{code}/news | 个股新闻资讯 |
+| GET | /api/v1/search/suggest | 代码/名称/拼音搜索 |
 | GET | /api/v1/portfolio | 持仓概览 |
+| POST | /api/v1/portfolio/import | 批量导入持仓 |
 | GET | /api/v1/alerts | 告警规则与事件 |
 | POST | /api/v1/alerts/rules | 添加告警规则 |
 | POST | /api/v1/agent/chat | Agent 问股 |

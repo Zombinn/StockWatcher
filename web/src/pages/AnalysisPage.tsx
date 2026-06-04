@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Card, Button, Row, Col, Statistic, Table, Tag, Alert, Typography, Space, Spin, Empty } from 'antd';
+import { Card, Button, Row, Col, Statistic, Table, Tag, Alert, Typography, Space, Empty } from 'antd';
 import { ReloadOutlined, RiseOutlined, FallOutlined } from '@ant-design/icons';
 import { api } from '../api';
 
@@ -43,14 +43,20 @@ export default function AnalysisPage() {
     },
     { title: '趋势', dataIndex: 'trend', key: 'trend', width: 80 },
     { title: '信号', dataIndex: 'signal', key: 'signal', width: 70 },
-    { title: '风险', dataIndex: 'risk', key: 'risk', width: 70,
+    { title: '风险', dataIndex: 'risk', key: 'risk', width: 80,
       render: (v: string) => {
         if (!v) return '-';
-        const color = v === '低' ? '#43a047' : v === '中' ? '#f9a825' : '#e53935';
+        const color = v.includes('低') ? '#43a047' : v.includes('中') ? '#f9a825' : '#e53935';
         return <Tag color={color} style={{ border: 'none', borderRadius: 4 }}>{v}</Tag>;
       },
     },
-    { title: '建议', dataIndex: 'suggestion', key: 'suggestion', width: 100 },
+    { title: '建议', dataIndex: 'suggestion', key: 'suggestion', width: 100,
+      render: (v: string) => {
+        if (!v) return '-';
+        const color = v.includes('买') ? '#e53935' : v.includes('卖') ? '#43a047' : '#64748b';
+        return <span style={{ color, fontWeight: 500 }}>{v}</span>;
+      },
+    },
     { title: '支撑', dataIndex: 'support', key: 'support', width: 80, render: (v: number) => v?.toFixed(2) ?? '-' },
     { title: '压力', dataIndex: 'resistance', key: 'resistance', width: 80, render: (v: number) => v?.toFixed(2) ?? '-' },
   ];
@@ -76,42 +82,47 @@ export default function AnalysisPage() {
           </div>
           <Text className="loading-text" style={{ fontSize: 13 }}>正在分析中...</Text>
         </div>
-      ) : data ? (
+      ) : data && data.stocks?.length ? (
         <>
-          {data.summaries && (
-            <Row gutter={[12, 12]} style={{ marginBottom: 16 }}>
-              {Object.entries(data.summaries).map(([code, summary]: any, idx: number) => {
-                const lines = summary.split('\n');
-                const nameLine = lines[0] || '';
-                const priceLine = lines[1] || '';
-                const match = nameLine.match(/[🟢🔴⚪🟡]\s*(.*)\((.*)\)/);
-                const priceMatch = priceLine.match(/[\d.]+/);
-                const changeMatch = priceLine.match(/[+-]\d+\.\d+%/);
-                const isUp = priceLine.includes('+');
-                return (
-                  <Col xs={24} sm={12} md={8} lg={6} key={code} className={`fade-in fade-in-delay-${idx % 5}`}>
-                    <Card className="glass-card" size="small" hoverable>
-                      <Statistic
-                        title={<span style={{ color: '#64748b' }}>{match ? match[1] : code}</span>}
-                        value={priceMatch ? parseFloat(priceMatch[0]) : 0}
-                        suffix={changeMatch
-                          ? <span style={{ fontSize: 14, fontWeight: 500, color: isUp ? '#e53935' : '#43a047' }}>{changeMatch[0]}</span>
-                          : ''}
-                        valueStyle={{ color: isUp ? '#e53935' : '#43a047', fontWeight: 600, fontSize: 22 }}
-                      />
-                      <div style={{ marginTop: 8, fontSize: 12, color: '#94a3b8', whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>{summary}</div>
-                    </Card>
-                  </Col>
-                );
-              })}
-            </Row>
-          )}
-          {data.report && (
-            <Card className="glass-card" title={<span style={{ fontSize: 15, fontWeight: 600 }}>📄 完整报告</span>}>
-              <pre style={{ whiteSpace: 'pre-wrap', fontSize: 13, lineHeight: 1.7, color: '#475569', fontFamily: 'inherit' }}>{data.report}</pre>
-            </Card>
-          )}
+          {/* 概览卡片 */}
+          <Row gutter={[12, 12]} style={{ marginBottom: 16 }}>
+            {data.stocks.map((s: any, idx: number) => {
+              const isUp = (s.change_pct ?? 0) >= 0;
+              const scoreColor = s.score >= 70 ? '#43a047' : s.score >= 40 ? '#f9a825' : '#e53935';
+              return (
+                <Col xs={24} sm={12} md={8} lg={6} key={s.code} className={`fade-in fade-in-delay-${idx % 5}`}>
+                  <Card className="glass-card" size="small" hoverable>
+                    <Statistic
+                      title={<span style={{ color: '#64748b' }}>{s.name || s.code} <Text type="secondary" style={{ fontSize: 11 }}>{s.code}</Text></span>}
+                      value={s.price ?? 0}
+                      precision={2}
+                      suffix={<span style={{ fontSize: 14, fontWeight: 500, color: isUp ? '#e53935' : '#43a047' }}>
+                        {isUp ? '+' : ''}{s.change_pct?.toFixed(2)}%
+                      </span>}
+                      valueStyle={{ color: isUp ? '#e53935' : '#43a047', fontWeight: 600, fontSize: 22 }}
+                    />
+                    <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <Space size={6}>
+                        <Tag color="default" style={{ borderRadius: 4, margin: 0 }}>{s.trend}</Tag>
+                        <Tag color={s.signal?.includes('买') ? 'red' : s.signal?.includes('卖') ? 'green' : 'default'}
+                          style={{ borderRadius: 4, margin: 0 }}>{s.signal}</Tag>
+                      </Space>
+                      <span style={{ color: scoreColor, fontWeight: 700, fontSize: 18 }}>{s.score?.toFixed(0)}</span>
+                    </div>
+                  </Card>
+                </Col>
+              );
+            })}
+          </Row>
+
+          {/* 明细表 */}
+          <Card className="glass-card" title={<span style={{ fontSize: 15, fontWeight: 600 }}>分析明细</span>}>
+            <Table dataSource={data.stocks} columns={columns} rowKey="code" pagination={false} size="small"
+              scroll={{ x: 'max-content' }} />
+          </Card>
         </>
+      ) : data ? (
+        <Card className="glass-card"><Empty description="无分析结果（请检查自选股配置）" /></Card>
       ) : (
         <Card className="glass-card"><Text type="secondary">暂无数据，请点击"刷新分析"</Text></Card>
       )}

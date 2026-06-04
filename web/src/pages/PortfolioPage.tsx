@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Card, Button, Row, Col, Statistic, Table, Tag, Alert, Typography, Modal, Input, InputNumber, Space, Select, Spin, Empty } from 'antd';
-import { ReloadOutlined, PlusOutlined, WalletOutlined, RiseOutlined, FallOutlined } from '@ant-design/icons';
+import { Card, Button, Row, Col, Statistic, Table, Tag, Alert, Typography, Modal, Input, InputNumber, Space, Select, Empty, message } from 'antd';
+import { ReloadOutlined, PlusOutlined, WalletOutlined, RiseOutlined, FallOutlined, ImportOutlined } from '@ant-design/icons';
 import { api } from '../api';
+import WatchlistPanel from './WatchlistPanel';
 
 const { Text } = Typography;
 
@@ -13,6 +14,9 @@ export default function PortfolioPage() {
   const [data, setData] = useState<any>(null);
   const [error, setError] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importText, setImportText] = useState('');
+  const [importing, setImporting] = useState(false);
   const [filterMarket, setFilterMarket] = useState<string>('');
   const [form, setForm] = useState({ code: '', quantity: 100, cost_price: 0, market: '' });
 
@@ -30,6 +34,26 @@ export default function PortfolioPage() {
     setModalOpen(false);
     setForm({ code: '', quantity: 100, cost_price: 0, market: '' });
     load();
+  };
+
+  const doImport = async () => {
+    if (!importText.trim()) { message.warning('请粘贴或上传持仓内容'); return; }
+    setImporting(true);
+    try {
+      const r = await api.importPositions(importText);
+      message.success(`成功导入 ${r.imported} 条${r.errors?.length ? `，${r.errors.length} 条跳过` : ''}`);
+      setImportOpen(false); setImportText('');
+      load();
+    } catch (e: any) { message.error(e.message); }
+    finally { setImporting(false); }
+  };
+
+  const onFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => setImportText(String(reader.result || ''));
+    reader.readAsText(file);
   };
 
   const filteredPositions = (data?.positions || []).filter((p: any) => {
@@ -90,6 +114,7 @@ export default function PortfolioPage() {
             style={{ width: 110 }}
           />
           <Button icon={<PlusOutlined />} onClick={() => setModalOpen(true)}>添加</Button>
+          <Button icon={<ImportOutlined />} onClick={() => setImportOpen(true)}>导入</Button>
           <Button type="primary" icon={<ReloadOutlined />} loading={loading} onClick={load}>刷新</Button>
         </Space>
       </div>
@@ -161,6 +186,9 @@ export default function PortfolioPage() {
               <Empty description={filterMarket ? '该市场暂无持仓' : '暂无持仓，点击"添加"按钮添加'} />
             )}
           </Card>
+
+          {/* 自选股（独立存储，无成本/盈亏/占比） */}
+          <WatchlistPanel />
         </>
       ) : (
         <Card className="glass-card"><Empty description="点击「刷新持仓」加载数据" /></Card>
@@ -182,6 +210,18 @@ export default function PortfolioPage() {
             onChange={v => setForm({ ...form, quantity: v || 0 })} style={{ width: '100%' }} />
           <InputNumber placeholder="成本价" value={form.cost_price} min={0} step={0.01}
             onChange={v => setForm({ ...form, cost_price: v || 0 })} style={{ width: '100%' }} />
+        </div>
+      </Modal>
+
+      <Modal title="批量导入持仓" open={importOpen} onOk={doImport} confirmLoading={importing}
+        onCancel={() => setImportOpen(false)} okText="导入" cancelText="取消">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 8 }}>
+          <Text type="secondary" style={{ fontSize: 13 }}>
+            每行一条，格式：<Text code>代码,数量,成本价,名称(可选)</Text>。支持逗号/制表符/空格分隔，可直接从 Excel/表格复制粘贴，表头自动忽略。
+          </Text>
+          <Input type="file" accept=".csv,.txt,.tsv" onChange={onFile} />
+          <Input.TextArea rows={8} value={importText} onChange={e => setImportText(e.target.value)}
+            placeholder={'600519,100,1700.5,贵州茅台\nAAPL,50,180.3,Apple\n00700.HK,200,380,腾讯控股'} />
         </div>
       </Modal>
     </div>

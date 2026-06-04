@@ -65,10 +65,11 @@ class AnalysisService:
         return results
 
     async def full_analysis(self) -> Dict[str, AnalysisResult]:
-        """完整分析所有自选股"""
-        stock_list = self.config.stock_list
+        """完整分析所有自选股（自选股来自 data/watchlist.json，回退 STOCK_LIST）"""
+        from src.services.watchlist_service import WatchlistService
+        stock_list = WatchlistService().get_codes() or self.config.stock_list
         if not stock_list:
-            logger.warning("未配置自选股 (STOCK_LIST)")
+            logger.warning("自选股为空")
             return {}
 
         logger.info("开始分析 %d 只股票", len(stock_list))

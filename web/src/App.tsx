@@ -1,6 +1,6 @@
 import logoImg from './assets/logo.png';
-import { useState } from 'react';
-import { ConfigProvider, Layout, Menu, theme, Button, Typography, Switch, Space } from 'antd';
+import { useState, useEffect } from 'react';
+import { ConfigProvider, Layout, Menu, theme, Button, Typography } from 'antd';
 import {
   BarChartOutlined, SearchOutlined, LineChartOutlined, WalletOutlined,
   AlertOutlined, RobotOutlined, ExperimentOutlined, SettingOutlined, CloseOutlined,
@@ -10,14 +10,12 @@ import AnalysisPage from './pages/AnalysisPage';
 import MarketPage from './pages/MarketPage';
 import PortfolioPage from './pages/PortfolioPage';
 import AlertsPage from './pages/AlertsPage';
-import AgentPage from './pages/AgentPage';
 import HomePage from './pages/HomePage';
 import StockScreeningPage from './pages/StockScreeningPage';
 import BacktestPage from './pages/BacktestPage';
 import ConfigPage from './pages/ConfigPage';
 
 const { Content, Sider } = Layout;
-const { useToken } = theme;
 const { Text } = Typography;
 
 const menuItems = [
@@ -34,7 +32,7 @@ const menuItems = [
 const pages: Record<string, React.FC> = {
   home: HomePage, screening: StockScreeningPage,
   analysis: AnalysisPage, market: MarketPage, portfolio: PortfolioPage,
-  alerts: AlertsPage, agent: AgentPage, backtest: BacktestPage, config: ConfigPage,
+  alerts: AlertsPage, backtest: BacktestPage, config: ConfigPage,
 };
 
 function AppInner() {
@@ -42,7 +40,13 @@ function AppInner() {
   const [agentOpen, setAgentOpen] = useState(true);
   const [agentWidth, setAgentWidth] = useState(400);
   const PageComponent = pages[page] || AnalysisPage;
-  const { token } = useToken();
+
+  // 允许任意页面通过事件跳转（如配置页「去配置」跳到持仓页）
+  useEffect(() => {
+    const handler = (e: Event) => setPage((e as CustomEvent<string>).detail);
+    window.addEventListener('sw-navigate', handler);
+    return () => window.removeEventListener('sw-navigate', handler);
+  }, []);
 
   return (
     <Layout style={{ minHeight: '100vh', minWidth: 0, background: '#ffffff', position: 'relative', overflow: 'hidden' }}>
@@ -111,10 +115,8 @@ function AppInner() {
           padding: 24, overflow: 'auto', minHeight: '100vh',
           background: '#ffffff',
         }}>
-          {menuItems.map(item => {
-            const Comp = pages[item.key];
-            return <div key={item.key} style={{ display: page === item.key ? "" : "none" }}><Comp /></div>;
-          })}
+          {/* 仅渲染当前页，避免一次性触发所有页面的接口 */}
+          <PageComponent />
         </Content>
       </Layout>
 

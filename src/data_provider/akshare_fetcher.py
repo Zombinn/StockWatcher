@@ -1,6 +1,7 @@
 """AkShare 数据获取（A股首选数据源，无需 token）"""
 from __future__ import annotations
 
+import asyncio
 import logging
 import random
 import time
@@ -52,6 +53,10 @@ class AkShareProvider(BaseDataProvider):
         return code
 
     async def get_realtime_quote(self, code: str) -> Optional[StockPrice]:
+        """获取实时行情（同步调用放入线程，避免阻塞事件循环）"""
+        return await asyncio.to_thread(self._get_realtime_quote_sync, code)
+
+    def _get_realtime_quote_sync(self, code: str) -> Optional[StockPrice]:
         """获取实时行情（通过东方财富接口）"""
         try:
             self._rate_limit()
@@ -83,6 +88,10 @@ class AkShareProvider(BaseDataProvider):
             return None
 
     async def get_kline(self, code: str, period: str = "daily", count: int = 120) -> List[KLine]:
+        """获取 K 线数据（同步调用放入线程，避免阻塞事件循环）"""
+        return await asyncio.to_thread(self._get_kline_sync, code, period, count)
+
+    def _get_kline_sync(self, code: str, period: str = "daily", count: int = 120) -> List[KLine]:
         """获取 K 线数据（东方财富 stock_zh_a_hist，失败降级到新浪）"""
         try:
             self._rate_limit()
@@ -151,6 +160,10 @@ class AkShareProvider(BaseDataProvider):
             return []
 
     async def get_stock_info(self, code: str) -> Optional[StockInfo]:
+        """获取股票信息（同步调用放入线程，避免阻塞事件循环）"""
+        return await asyncio.to_thread(self._get_stock_info_sync, code)
+
+    def _get_stock_info_sync(self, code: str) -> Optional[StockInfo]:
         try:
             self._rate_limit()
             self._ua_rotate()

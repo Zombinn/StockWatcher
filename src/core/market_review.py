@@ -40,13 +40,13 @@ def _http_client() -> httpx.AsyncClient:
     return httpx.AsyncClient(
         headers=_headers(),
         follow_redirects=True,
-        timeout=15.0,
+        timeout=6.0,
         limits=httpx.Limits(max_keepalive_connections=5, max_connections=10),
     )
 
 
-async def _fetch_json(url: str, params: dict, retries: int = 2) -> Optional[dict]:
-    """带双域名 fallback + 重试的 JSON 请求"""
+async def _fetch_json(url: str, params: dict, retries: int = 1) -> Optional[dict]:
+    """带双域名 fallback + 重试的 JSON 请求（快速失败，避免单接口拖垮整体）"""
     import asyncio
     for host in ("push2.eastmoney.com", "push2delay.eastmoney.com"):
         for attempt in range(retries):

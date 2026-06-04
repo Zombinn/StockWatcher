@@ -211,6 +211,7 @@ export default function HomePage() {
   const [suggestions, setSuggestions] = useState<StockCandidate[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
   const [recommend, setRecommend] = useState<StockCandidate[]>([]);
+  const [symbols, setSymbols] = useState<StockCandidate[]>([]);
   const searchRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -225,16 +226,30 @@ export default function HomePage() {
     analysisApi.searchRecommend(market).then(setRecommend).catch(() => {});
   }, [market]);
 
-  // Search suggest
+  // 页面打开时加载「自选 + 持仓」去重代码，供输入框下拉
   useEffect(() => {
-    if (query.trim().length >= 1) {
-      analysisApi.searchSuggest(query, market).then(setSuggestions);
+    api.getSymbols()
+      .then(d => setSymbols((d.data || []).map((s: any) => ({ code: s.code, name: s.name, market: s.market }))))
+      .catch(() => {});
+  }, []);
+
+  // Search suggest（空查询展示自选+持仓；输入时先本地筛选自选+持仓，再并入全市场搜索结果）
+  useEffect(() => {
+    const q = query.trim().toUpperCase();
+    if (q.length >= 1) {
+      const localMatches = symbols.filter(
+        s => s.code.toUpperCase().includes(q) || (s.name || '').toUpperCase().includes(q)
+      );
+      setSuggestions(localMatches);   // 立即按输入筛选自选+持仓
       setShowDropdown(true);
+      analysisApi.searchSuggest(query, market).then(remote => {
+        const seen = new Set(localMatches.map(s => s.code));
+        setSuggestions([...localMatches, ...remote.filter(r => !seen.has(r.code))]);
+      }).catch(() => {});
     } else {
-      setSuggestions([]);
-      setShowDropdown(false);
+      setSuggestions(symbols);
     }
-  }, [query, market]);
+  }, [query, market, symbols]);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -327,7 +342,7 @@ export default function HomePage() {
               <div style={{
                 position: 'absolute', top: '100%', left: 0, right: 0,
                 background: '#fff', borderRadius: 8, boxShadow: '0 8px 30px rgba(0,0,0,0.12)',
-                zIndex: 100, marginTop: 4, maxHeight: 320, overflow: 'auto',
+                zIndex: 100, marginTop: 4, maxHeight: 400, overflow: 'auto',
                 border: '1px solid rgba(0,0,0,0.06)',
               }}>
                 {suggestions.map(s => (

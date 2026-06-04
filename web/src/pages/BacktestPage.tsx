@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
-import { Card, Button, Row, Col, Statistic, Table, Tag, Alert, Input, Select, Space, Typography, Spin, Empty } from 'antd';
+import { useState } from 'react';
+import { Card, Button, Row, Col, Statistic, Table, Tag, Alert, Select, Space, Typography, Empty } from 'antd';
 import { ExperimentOutlined, ReloadOutlined, RiseOutlined, FallOutlined } from '@ant-design/icons';
 import { api } from '../api';
+import SymbolSelect from '../components/SymbolSelect';
 
 const { Text } = Typography;
 
@@ -13,7 +14,7 @@ const strategies = [
 ];
 
 export default function BacktestPage() {
-  const [code, setCode] = useState('600519');
+  const [code, setCode] = useState('');
   const [strategy, setStrategy] = useState('ma_cross');
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<any>(null);
@@ -21,14 +22,12 @@ export default function BacktestPage() {
 
   const run = async (autoCode?: string) => {
     const c = autoCode || code;
-    if (!c) return;
+    if (!c) { setError('请输入或选择股票代码'); return; }
     setLoading(true); setError('');
     try { const d = await api.backtest(c, strategy); setData(d.data); }
     catch (e: any) { setError(e.message); }
     finally { setLoading(false); }
   };
-
-  useEffect(() => { if (code) run(code); }, []);
 
   const tradeColumns = [
     { title: '日期', dataIndex: 'date', width: 105,
@@ -59,7 +58,7 @@ export default function BacktestPage() {
       </div>
       <Card className="glass-card" style={{ marginBottom: 20 }}>
         <Space wrap>
-          <Input value={code} onChange={e => setCode(e.target.value)} style={{ width: 120 }} placeholder="股票代码" />
+          <SymbolSelect value={code} onChange={setCode} style={{ width: 200 }} />
           <Select value={strategy} onChange={v => { setStrategy(v); }} options={strategies} style={{ width: 130 }} />
           <Button type="primary" icon={<ExperimentOutlined />} loading={loading} onClick={() => run()}>回测</Button>
         </Space>

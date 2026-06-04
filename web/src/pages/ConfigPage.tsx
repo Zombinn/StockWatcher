@@ -1,9 +1,20 @@
 import { useState, useEffect } from 'react';
-import { Card, Button, Input, Switch, Select, Spin, Space, Typography, message } from 'antd';
-import { SaveOutlined, ReloadOutlined, SettingOutlined } from '@ant-design/icons';
+import { Card, Button, Input, Switch, Select, Space, Tag, Typography, message } from 'antd';
+import { SaveOutlined, ReloadOutlined, SettingOutlined, RightOutlined } from '@ant-design/icons';
 import { api } from '../api';
 
 const { Text } = Typography;
+
+// 市场 → 颜色（与持仓页一致）
+const MARKET_META: Record<string, { label: string; color: string }> = {
+  A: { label: 'A股', color: 'blue' },
+  HK: { label: '港股', color: 'purple' },
+  US: { label: '美股', color: 'green' },
+};
+
+function goToPortfolio() {
+  window.dispatchEvent(new CustomEvent('sw-navigate', { detail: 'portfolio' }));
+}
 
 export default function ConfigPage() {
   const [sections, setSections] = useState<any[]>([]);
@@ -12,6 +23,7 @@ export default function ConfigPage() {
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<any>(null);
   const [formDirty, setFormDirty] = useState<Record<string, string>>({});
+  const [watchlist, setWatchlist] = useState<any[]>([]);
 
   const load = async () => {
     setLoading(true);
@@ -24,6 +36,8 @@ export default function ConfigPage() {
     } catch (e: any) {
       message.error('加载配置失败: ' + e.message);
     } finally { setLoading(false); }
+    // 自选股列表只读展示，单独异步加载（带行情，可能较慢）
+    api.getWatchlist().then(d => setWatchlist(d.data || [])).catch(() => {});
   };
 
   const save = async () => {
@@ -81,6 +95,45 @@ export default function ConfigPage() {
         <Card key={sec.key} className="glass-card" title={<span style={{ fontSize: 15, fontWeight: 600 }}>{sec.label}</span>} style={{ marginBottom: 16 }}>
           {sec.fields.map((f: any) => {
             const val = formDirty[f.key] !== undefined ? formDirty[f.key] : (values[f.key] ?? f.default ?? '');
+
+            // 自选股列表：只读展示（代码+名称，颜色区分市场），管理跳转持仓页
+            if (f.key === 'STOCK_LIST') {
+              return (
+                <div key={f.key} style={{ marginBottom: 20 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <Space size={8} wrap>
+                      <span style={{ color: '#64748b', fontSize: 13, fontWeight: 500 }}>{f.label}</span>
+                      <Space size={4}>
+                        {Object.values(MARKET_META).map(m => (
+                          <Tag key={m.label} color={m.color} style={{ borderRadius: 4, border: 'none', margin: 0, fontSize: 11, lineHeight: '18px' }}>{m.label}</Tag>
+                        ))}
+                      </Space>
+                    </Space>
+                    <a onClick={goToPortfolio} style={{ color: '#f5642a', fontSize: 13, fontWeight: 500 }}>
+                      去配置 <RightOutlined style={{ fontSize: 10 }} />
+                    </a>
+                  </div>
+                  {watchlist.length > 0 ? (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                      {watchlist.map(w => {
+                        const meta = MARKET_META[w.market] || { color: 'default' };
+                        return (
+                          <Tag key={w.code} color={meta.color}
+                            style={{ borderRadius: 6, padding: '3px 10px', margin: 0, fontSize: 13, cursor: 'default' }}>
+                            <span style={{ fontWeight: 600 }}>{w.code}</span>
+                            {w.name && w.name !== w.code && <span style={{ marginLeft: 6, opacity: 0.85 }}>{w.name}</span>}
+                          </Tag>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <Text type="secondary" style={{ fontSize: 13 }}>暂无自选股，点击「去配置」前往持仓页添加</Text>
+                  )}
+                  <div style={{ color: '#94a3b8', fontSize: 12, marginTop: 6 }}>自选股已迁至持仓页统一管理（不再于此编辑）</div>
+                </div>
+              );
+            }
+
             return (
               <div key={f.key} style={{ marginBottom: 20 }}>
                 <label style={{ display: 'block', marginBottom: 4, color: '#64748b', fontSize: 13, fontWeight: 500 }}>{f.label}</label>

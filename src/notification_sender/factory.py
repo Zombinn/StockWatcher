@@ -43,6 +43,14 @@ def create_senders(config: Config) -> Dict[str, "BaseSender"]:
         senders["slack"] = SlackSender(config.slack_webhook_url)
         logger.info("✅ Slack 通知已配置")
 
+    if config.smtp_server and config.smtp_user and config.smtp_password and config.email_to:
+        from .email_sender import EmailSender
+        senders["email"] = EmailSender(
+            config.smtp_server, config.smtp_port,
+            config.smtp_user, config.smtp_password, config.email_to,
+        )
+        logger.info("✅ 邮件通知已配置")
+
     return senders
 
 
