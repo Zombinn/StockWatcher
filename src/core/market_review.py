@@ -118,34 +118,8 @@ class MarketReviewer:
         self.config = get_config()
 
     async def fetch_indices(self) -> List[IndexData]:
-        """获取主要指数数据"""
-        indices = []
-        try:
-            secids = ",".join(AKSHARE_INDEX_MAP.values())
-            data = await _fetch_json(
-                "https://push2.eastmoney.com/api/qt/ulist.np/get",
-                {"fltt": 2, "fields": "f2,f3,f4,f6,f15,f12,f14", "secids": secids},
-            )
-            if data and isinstance(data, dict) and "data" in data and data["data"]:
-                diff = data["data"].get("diff", [])
-                if isinstance(diff, list):
-                    for item in diff:
-                        name = item.get("f14", "")
-                        indices.append(IndexData(
-                            name=name,
-                            code=item.get("f12", ""),
-                            price=float(item.get("f2", 0)),
-                            change_pct=float(item.get("f3", 0)),
-                            change_amount=float(item.get("f4", 0)),
-                            volume=float(item.get("f6", 0)),
-                            amount=float(item.get("f15", 0)),
-                        ))
-        except Exception as e:
-            logger.warning("获取指数数据失败: %s", e)
-        if not indices:
-            logger.info("东方财富指数为空，降级到新浪源")
-            indices = await self._fetch_indices_sina()
-        return indices
+        """获取主要指数数据（新浪源，东方财富已禁用 — 网络不可达）"""
+        return await self._fetch_indices_sina()
 
     async def _fetch_indices_sina(self) -> List[IndexData]:
         """新浪指数源（东方财富不可达时降级，不依赖 eastmoney）"""

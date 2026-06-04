@@ -71,36 +71,9 @@ class AkShareProvider(BaseDataProvider):
         return await asyncio.to_thread(self._get_realtime_quote_sync, code)
 
     def _get_realtime_quote_sync(self, code: str) -> Optional[StockPrice]:
-        """获取实时行情（新浪快照优先——快且稳、带缓存；不可用时回退东方财富）"""
+        """获取实时行情（新浪快照，带缓存）"""
         clean = self._clean_code(code)
-        q = self._sina_quote(code, clean)
-        if q and q.price:
-            return q
-        try:
-            self._rate_limit()
-            self._ua_rotate()
-            df = ak.stock_zh_a_spot_em()
-            if df is not None and not df.empty:
-                row = df[df["代码"] == clean]
-                if not row.empty:
-                    r = row.iloc[0]
-                    return StockPrice(
-                        code=code,
-                        name=str(r.get("名称", "")),
-                        price=float(r.get("最新价", 0)),
-                        open=float(r.get("今开", 0)),
-                        high=float(r.get("最高", 0)),
-                        low=float(r.get("最低", 0)),
-                        pre_close=float(r.get("昨收", 0)),
-                        volume=float(r.get("成交量", 0)),
-                        amount=float(r.get("成交额", 0)),
-                        change_pct=float(r.get("涨跌幅", 0)),
-                        turnover_rate=float(r.get("换手率", 0)),
-                        volume_ratio=float(r.get("量比", 0)),
-                    )
-        except Exception as e:
-            logger.warning("AkShare(EM) 实时行情失败 %s: %s", code, e)
-        return q
+        return self._sina_quote(code, clean)
 
     def _sina_quote(self, code: str, clean: str) -> Optional[StockPrice]:
         """新浪实时行情降级（东方财富不可达时使用，带 30s 快照缓存）"""
@@ -133,46 +106,8 @@ class AkShareProvider(BaseDataProvider):
         return await asyncio.to_thread(self._get_kline_sync, code, period, count)
 
     def _get_kline_sync(self, code: str, period: str = "daily", count: int = 120) -> List[KLine]:
-        """获取 K 线数据（东方财富 stock_zh_a_hist，失败降级到新浪）"""
-        try:
-            self._rate_limit()
-            self._ua_rotate()
-            clean = self._clean_code(code)
-
-            end = datetime.now()
-            start = end - timedelta(days=count * 2)  # 多取一些，过滤非交易日
-
-            df = ak.stock_zh_a_hist(
-                symbol=clean,
-                period=period,
-                start_date=start.strftime("%Y%m%d"),
-                end_date=end.strftime("%Y%m%d"),
-                adjust="qfq",
-            )
-
-            if df is None or df.empty:
-                logger.debug("AkShare(EM) K 线为空 %s，尝试新浪接口", code)
-                return self._fallback_kline_sina(code, count)
-
-            df = df.tail(count)
-            results = []
-            for _, r in df.iterrows():
-                results.append(KLine(
-                    code=code,
-                    date=str(r["日期"]),
-                    open=float(r["开盘"]),
-                    high=float(r["最高"]),
-                    low=float(r["最低"]),
-                    close=float(r["收盘"]),
-                    volume=float(r["成交量"]),
-                    amount=float(r["成交额"]) if "成交额" in r else 0.0,
-                    change_pct=float(r["涨跌幅"]) if "涨跌幅" in r else 0.0,
-                ))
-            return results
-
-        except Exception as e:
-            logger.warning("AkShare(EM) K 线失败 %s: %s，尝试新浪接口", code, e)
-            return self._fallback_kline_sina(code, count)
+        """获取 K 线数据（新浪接口，东方财富已禁用 — 网络不可达）"""
+        return self._fallback_kline_sina(code, count)
 
     def _fallback_kline_sina(self, code: str, count: int = 120) -> List[KLine]:
         """备用 K 线数据（新浪接口）"""
@@ -209,17 +144,18 @@ class AkShareProvider(BaseDataProvider):
             self._rate_limit()
             self._ua_rotate()
             clean = self._clean_code(code)
-            df = ak.stock_individual_info_em(symbol=clean)
-            info = {}
-            for _, r in df.iterrows():
-                info[r["item"]] = r["value"]
-            return StockInfo(
-                code=code,
-                name=str(info.get("股票简称", "")),
-                market=str(info.get("上市板块", "")),
-                sector=str(info.get("行业", "")),
-                market_cap=float(str(info.get("总市值", "0")).replace(",", "")),
-            )
+            # 从新浪快照获取股票信息（避免触发 libmini_racer）
+            df = _sina_spot_snapshot()
+            if df is not None and not df.empty:
+                row = df[df["代码"] == clean]
+                if not row.empty:
+                    r = row.iloc[0]
+                    return StockInfo(
+                        code=code,
+                        name=str(r.get("名称", "")),
+                        market=str(r.get("交易所", "")),
+                    )
+            return StockInfo(code=code, name="")
         except Exception as e:
             logger.warning("AkShare 股票信息失败 %s: %s", code, e)
             return None
