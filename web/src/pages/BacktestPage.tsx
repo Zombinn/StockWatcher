@@ -1,16 +1,16 @@
 import { useState } from 'react';
-import { Card, Button, Row, Col, Statistic, Table, Tag, Alert, Select, Space, Typography, Empty } from 'antd';
-import { ExperimentOutlined, ReloadOutlined, RiseOutlined, FallOutlined } from '@ant-design/icons';
+import { Card, Button, Row, Col, Statistic, Table, Tag, Alert, Select, Space, Typography, Empty, Modal } from 'antd';
+import { ExperimentOutlined, RiseOutlined, FallOutlined, QuestionCircleOutlined } from '@ant-design/icons';
 import { api } from '../api';
 import SymbolSelect from '../components/SymbolSelect';
 
 const { Text } = Typography;
 
 const strategies = [
-  { value: 'ma_cross', label: '均线金叉' },
-  { value: 'macd', label: 'MACD' },
-  { value: 'rsi', label: 'RSI' },
-  { value: 'bollinger', label: '布林带' },
+  { value: 'ma_cross', label: '均线金叉', desc: '短期均线上穿长期均线（金叉）买入，下穿（死叉）卖出。趋势跟踪型，适合单边趋势行情，震荡市易反复止损。' },
+  { value: 'macd', label: 'MACD', desc: 'MACD 柱由负转正（DIF 上穿 DEA，金叉）买入，由正转负（死叉）卖出。兼顾趋势与动能，信号比纯均线略灵敏。' },
+  { value: 'rsi', label: 'RSI', desc: 'RSI 跌破 30（超卖）买入，升破 70（超买）卖出。均值回归／反转型，适合区间震荡，强趋势中可能过早离场。' },
+  { value: 'bollinger', label: '布林带', desc: '价格触及布林带下轨买入，触及上轨卖出。均值回归型，适合箱体震荡，单边突破行情中风险较高。' },
 ];
 
 export default function BacktestPage() {
@@ -19,6 +19,7 @@ export default function BacktestPage() {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<any>(null);
   const [error, setError] = useState('');
+  const [helpOpen, setHelpOpen] = useState(false);
 
   const run = async (autoCode?: string) => {
     const c = autoCode || code;
@@ -59,7 +60,11 @@ export default function BacktestPage() {
       <Card className="glass-card" style={{ marginBottom: 20 }}>
         <Space wrap>
           <SymbolSelect value={code} onChange={setCode} style={{ width: 200 }} />
-          <Select value={strategy} onChange={v => { setStrategy(v); }} options={strategies} style={{ width: 130 }} />
+          <Space size={4}>
+            <Button type="text" shape="circle" icon={<QuestionCircleOutlined style={{ color: '#94a3b8' }} />}
+              onClick={() => setHelpOpen(true)} title="策略说明" />
+            <Select value={strategy} onChange={v => setStrategy(v)} options={strategies} style={{ width: 130 }} />
+          </Space>
           <Button type="primary" icon={<ExperimentOutlined />} loading={loading} onClick={() => run()}>回测</Button>
         </Space>
       </Card>
@@ -108,6 +113,20 @@ export default function BacktestPage() {
       ) : (
         <Card className="glass-card"><Text type="secondary">输入股票代码点击"回测"开始</Text></Card>
       )}
+
+      <Modal title="📈 回测策略说明" open={helpOpen} onCancel={() => setHelpOpen(false)} footer={null}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 8 }}>
+          {strategies.map(s => (
+            <div key={s.value} style={{ borderLeft: '3px solid #f5642a', paddingLeft: 12 }}>
+              <Text strong style={{ fontSize: 14, color: '#1a1a2e' }}>{s.label}</Text>
+              <div style={{ fontSize: 13, color: '#64748b', marginTop: 2, lineHeight: 1.6 }}>{s.desc}</div>
+            </div>
+          ))}
+          <Text type="secondary" style={{ fontSize: 12 }}>
+            提示：回测仅基于历史数据，结果不代表未来收益，请结合实际谨慎参考。
+          </Text>
+        </div>
+      </Modal>
     </div>
   );
 }

@@ -143,8 +143,39 @@ class MarketReviewer:
         except Exception as e:
             logger.warning("获取指数数据失败: %s", e)
         if not indices:
-            logger.info("指数数据为空，返回空列表")
+            logger.info("东方财富指数为空，降级到新浪源")
+            indices = await self._fetch_indices_sina()
         return indices
+
+    async def _fetch_indices_sina(self) -> List[IndexData]:
+        """新浪指数源（东方财富不可达时降级，不依赖 eastmoney）"""
+        import asyncio
+
+        def _run() -> List[IndexData]:
+            try:
+                import akshare as ak
+                df = ak.stock_zh_index_spot_sina()
+            except Exception as e:
+                logger.warning("新浪指数获取失败: %s", e)
+                return []
+            order = ["上证指数", "深证成指", "创业板指", "科创50", "沪深300"]
+            want = set(order)
+            seen: dict = {}
+            for _, r in df[df["名称"].isin(want)].iterrows():
+                name = str(r["名称"])
+                if name in seen:
+                    continue
+                try:
+                    seen[name] = IndexData(
+                        name=name, code=str(r["代码"]),
+                        price=float(r["最新价"]), change_pct=float(r["涨跌幅"]),
+                        change_amount=float(r.get("涨跌额", 0) or 0),
+                    )
+                except (ValueError, KeyError):
+                    continue
+            return [seen[n] for n in order if n in seen]
+
+        return await asyncio.to_thread(_run)
 
     async def fetch_sectors(self, top: int = 10) -> tuple[List[SectorData], List[SectorData]]:
         """获取板块涨幅/跌幅排行"""
@@ -185,7 +216,35 @@ class MarketReviewer:
                         ))
         except Exception as e:
             logger.warning("获取板块数据失败: %s", e)
+        if not top_sectors and not fall_sectors:
+            logger.info("东方财富板块为空，降级到新浪源")
+            top_sectors, fall_sectors = await self._fetch_sectors_sina(top)
         return top_sectors, fall_sectors
+
+    async def _fetch_sectors_sina(self, top: int = 10) -> tuple[List[SectorData], List[SectorData]]:
+        """新浪行业板块源（东方财富不可达时降级）"""
+        import asyncio
+
+        def _pct(v) -> float:
+            try:
+                return float(str(v).replace("%", "").strip())
+            except (ValueError, TypeError):
+                return 0.0
+
+        def _run() -> tuple[List[SectorData], List[SectorData]]:
+            try:
+                import akshare as ak
+                df = ak.stock_sector_spot()
+            except Exception as e:
+                logger.warning("新浪板块获取失败: %s", e)
+                return [], []
+            rows = [(str(r["板块"]), _pct(r["涨跌幅"])) for _, r in df.iterrows()]
+            rows.sort(key=lambda x: x[1], reverse=True)
+            top_s = [SectorData(name=n, change_pct=c) for n, c in rows[:top]]
+            fall_s = [SectorData(name=n, change_pct=c) for n, c in rows[-top:][::-1]]
+            return top_s, fall_s
+
+        return await asyncio.to_thread(_run)
 
     async def fetch_northbound(self) -> Optional[NorthboundFlow]:
         """获取北向资金数据"""

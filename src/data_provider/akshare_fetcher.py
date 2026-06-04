@@ -15,6 +15,20 @@ from .base import BaseDataProvider, KLine, StockInfo, StockPrice
 
 logger = logging.getLogger(__name__)
 
+# 新浪 A 股全市场快照缓存（避免每只股票各拉一次全表）
+_SINA_SNAPSHOT: dict = {"ts": 0.0, "df": None}
+
+
+def _sina_spot_snapshot():
+    """返回新浪 A 股全市场快照（30s 缓存）"""
+    now = time.time()
+    if _SINA_SNAPSHOT["df"] is not None and now - _SINA_SNAPSHOT["ts"] < 30:
+        return _SINA_SNAPSHOT["df"]
+    df = ak.stock_zh_a_spot()
+    _SINA_SNAPSHOT["df"] = df
+    _SINA_SNAPSHOT["ts"] = now
+    return df
+
 
 class AkShareProvider(BaseDataProvider):
     """基于 AkShare 的数据提供者（A 股，无需 token）"""
@@ -57,34 +71,61 @@ class AkShareProvider(BaseDataProvider):
         return await asyncio.to_thread(self._get_realtime_quote_sync, code)
 
     def _get_realtime_quote_sync(self, code: str) -> Optional[StockPrice]:
-        """获取实时行情（通过东方财富接口）"""
+        """获取实时行情（新浪快照优先——快且稳、带缓存；不可用时回退东方财富）"""
+        clean = self._clean_code(code)
+        q = self._sina_quote(code, clean)
+        if q and q.price:
+            return q
         try:
             self._rate_limit()
             self._ua_rotate()
-            clean = self._clean_code(code)
             df = ak.stock_zh_a_spot_em()
+            if df is not None and not df.empty:
+                row = df[df["代码"] == clean]
+                if not row.empty:
+                    r = row.iloc[0]
+                    return StockPrice(
+                        code=code,
+                        name=str(r.get("名称", "")),
+                        price=float(r.get("最新价", 0)),
+                        open=float(r.get("今开", 0)),
+                        high=float(r.get("最高", 0)),
+                        low=float(r.get("最低", 0)),
+                        pre_close=float(r.get("昨收", 0)),
+                        volume=float(r.get("成交量", 0)),
+                        amount=float(r.get("成交额", 0)),
+                        change_pct=float(r.get("涨跌幅", 0)),
+                        turnover_rate=float(r.get("换手率", 0)),
+                        volume_ratio=float(r.get("量比", 0)),
+                    )
+        except Exception as e:
+            logger.warning("AkShare(EM) 实时行情失败 %s: %s", code, e)
+        return q
+
+    def _sina_quote(self, code: str, clean: str) -> Optional[StockPrice]:
+        """新浪实时行情降级（东方财富不可达时使用，带 30s 快照缓存）"""
+        try:
+            df = _sina_spot_snapshot()
             if df is None or df.empty:
                 return None
-            row = df[df["代码"] == clean]
+            row = df[df["代码"].str.endswith(clean)]
             if row.empty:
                 return None
             r = row.iloc[0]
             return StockPrice(
                 code=code,
                 name=str(r.get("名称", "")),
-                price=float(r.get("最新价", 0)),
-                open=float(r.get("今开", 0)),
-                high=float(r.get("最高", 0)),
-                low=float(r.get("最低", 0)),
-                pre_close=float(r.get("昨收", 0)),
-                volume=float(r.get("成交量", 0)),
-                amount=float(r.get("成交额", 0)),
-                change_pct=float(r.get("涨跌幅", 0)),
-                turnover_rate=float(r.get("换手率", 0)),
-                volume_ratio=float(r.get("量比", 0)),
+                price=float(r.get("最新价", 0) or 0),
+                open=float(r.get("今开", 0) or 0),
+                high=float(r.get("最高", 0) or 0),
+                low=float(r.get("最低", 0) or 0),
+                pre_close=float(r.get("昨收", 0) or 0),
+                volume=float(r.get("成交量", 0) or 0),
+                amount=float(r.get("成交额", 0) or 0),
+                change_pct=float(r.get("涨跌幅", 0) or 0),
             )
         except Exception as e:
-            logger.warning("AkShare 实时行情失败 %s: %s", code, e)
+            logger.warning("AkShare(新浪) 实时行情失败 %s: %s", code, e)
             return None
 
     async def get_kline(self, code: str, period: str = "daily", count: int = 120) -> List[KLine]:
