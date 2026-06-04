@@ -166,7 +166,7 @@ def main() -> int:
     try:
         if args.serve:
             logger.info("启动 API 服务模式")
-            from src.server import start_server
+            from server import start_server
             start_server(config)
             return 0
 

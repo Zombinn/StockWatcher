@@ -127,6 +127,7 @@ class PortfolioService:
                 market_value=market_value,
                 profit_pct=profit_pct,
                 profit_amount=profit_amount,
+                sector=info.sector if info else '',
             )
             portfolio.positions.append(position)
             total_value += market_value

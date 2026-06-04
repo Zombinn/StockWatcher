@@ -179,7 +179,7 @@ class StockAnalyzer:
         gains = np.where(deltas > 0, deltas, 0)
         losses = np.where(deltas < 0, -deltas, 0)
         avg_gain = np.mean(gains[-period:]) if len(gains) >= period else 0
-        avg_loss = np.mean(losses[-period:]) if len(losses) >= period else 1e-10
+        avg_loss = np.mean(losses[-period:]) if len(losses) >= period and np.mean(losses[-period:]) > 0 else 1e-10
         rs = avg_gain / avg_loss
         return float(100 - (100 / (1 + rs)))
 

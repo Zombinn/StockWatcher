@@ -89,6 +89,18 @@ ALL_FIELDS: List[ConfigField] = [
                 "代理服务器端口", section="proxy"),
 
     # ---- 日志 ----
+    # ---- 邮件通知 (SMTP) ----
+    ConfigField("SMTP_SERVER", "SMTP 服务器", "string", "", "SMTP 服务器地址", section="notify"),
+    ConfigField("SMTP_PORT", "SMTP 端口", "number", "587", "SMTP 端口号", section="notify"),
+    ConfigField("SMTP_USER", "SMTP 用户名", "password", "", "邮箱登录用户名", section="notify"),
+    ConfigField("SMTP_PASSWORD", "SMTP 密码", "password", "", "邮箱密码或授权码", section="notify"),
+    ConfigField("EMAIL_TO", "接收邮箱", "password", "", "接收分析报告的邮箱地址", section="notify"),
+
+    # ---- 其他 ----
+    ConfigField("PORTFOLIO_FILE", "持仓数据文件", "string", "data/portfolio.json", "持仓数据持久化路径", section="log"),
+    ConfigField("ALERT_FILE", "告警数据文件", "string", "data/alerts.json", "告警规则和事件持久化路径", section="log"),
+
+
     ConfigField("LOG_DIR", "日志目录", "string", "logs",
                 "日志和报告文件的存储路径", section="log"),
     ConfigField("LOG_LEVEL", "日志级别", "select", "INFO",
