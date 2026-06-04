@@ -14,12 +14,11 @@ from src.config import setup_env, get_config
 setup_env()
 
 from src.logging_config import setup_logging
-from webui import router as webui_router
+from fastapi.staticfiles import StaticFiles
 
 config = get_config()
 setup_logging(log_prefix="api", log_dir=config.log_dir)
 logger = logging.getLogger(__name__)
-
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -27,11 +26,14 @@ async def lifespan(app: FastAPI):
     yield
     logger.info("StockWatcher API 关闭")
 
-
 app = FastAPI(title="StockWatcher API", version="2.0.0", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
-app.include_router(webui_router)
 
+# Serve React frontend (built files)
+web_dist = os.path.join(os.path.dirname(__file__), 'web', 'dist')
+if os.path.isdir(web_dist):
+    app.mount('/', StaticFiles(directory=web_dist, html=True), name='frontend')
+    logger.info('React 前端已挂载: %s', web_dist)
 
 # ====== 基础 ======
 @app.get("/")
@@ -41,7 +43,6 @@ async def root():
 @app.get("/health")
 async def health():
     return {"status": "ok"}
-
 
 # ====== 分析 ======
 @app.get("/api/v1/analyze")
@@ -82,7 +83,6 @@ async def analyze_stock(code: str):
         },
     }
 
-
 # ====== LLM 解读 ======
 @app.get("/api/v1/analyze/llm/{code}")
 async def analyze_with_llm(code: str):
@@ -95,7 +95,6 @@ async def analyze_with_llm(code: str):
     interpreter = LLMInterpreter()
     llm_result = await interpreter.interpret_technical(result)
     return {"success": True, "technical": result.__dict__, "llm_analysis": llm_result.__dict__ if llm_result else None}
-
 
 # ====== 大盘复盘 ======
 @app.get("/api/v1/market/review")
@@ -113,7 +112,6 @@ async def market_review():
         "llm_analysis": result.llm_analysis,
         "timestamp": result.timestamp,
     }
-
 
 # ====== 持仓管理 ======
 @app.get("/api/v1/portfolio")
@@ -154,7 +152,6 @@ async def remove_position(code: str, quantity: Optional[int] = Query(None)):
     service.remove_position(code, quantity)
     return {"success": True, "message": f"已更新 {code} 持仓"}
 
-
 # ====== 告警 ======
 @app.get("/api/v1/alerts")
 async def get_alerts():
@@ -186,7 +183,6 @@ async def check_alerts():
     events = await engine.check()
     return {"success": True, "triggered": len(events), "events": [e.__dict__ for e in events]}
 
-
 # ====== Agent 问股 ======
 @app.get("/api/v1/agent/strategies")
 async def list_strategies():
@@ -208,7 +204,6 @@ async def agent_chat(session_id: str=Query(...), message: str=Query(...), strate
     response = await agent.chat(session_id, message, strategy)
     return {"success": True, "response": response}
 
-
 # ====== 回测 ======
 @app.get("/api/v1/backtest")
 async def backtest(code: str=Query(...), strategy: str=Query("ma_cross"), start_date: str="", end_date: str=""):
@@ -228,7 +223,6 @@ async def backtest(code: str=Query(...), strategy: str=Query("ma_cross"), start_
             "trades": [t.__dict__ for t in result.trades[-20:]],
         },
     }
-
 
 # ====== 配置管理 ======
 @app.get("/api/v1/config/sections")
@@ -260,14 +254,12 @@ async def reset_config():
     from src.services.config_service import ConfigManager
     return ConfigManager.reset_to_default()
 
-
 def start_server(cfg=None) -> None:
     import uvicorn
     host = os.getenv("HOST", "0.0.0.0")
     port = int(os.getenv("PORT", "8000"))
     logger.info("启动 StockWatcher API: http://%s:%d", host, port)
     uvicorn.run("server:app", host=host, port=port, reload=False)
-
 
 if __name__ == "__main__":
     start_server()
