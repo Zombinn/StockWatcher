@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Card, Button, Input, Switch, Select, Space, Tag, Typography, message } from 'antd';
-import { SaveOutlined, ReloadOutlined, SettingOutlined, RightOutlined } from '@ant-design/icons';
+import { SaveOutlined, ReloadOutlined, SettingOutlined, RightOutlined, ThunderboltOutlined } from '@ant-design/icons';
 import { api } from '../api';
 
 const { Text } = Typography;
@@ -23,6 +23,7 @@ export default function ConfigPage() {
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<any>(null);
   const [formDirty, setFormDirty] = useState<Record<string, string>>({});
+  const [testing, setTesting] = useState(false);
   const [watchlist, setWatchlist] = useState<any[]>([]);
 
   const load = async () => {
@@ -38,6 +39,17 @@ export default function ConfigPage() {
     } finally { setLoading(false); }
     // 自选股列表只读展示，单独异步加载（带行情，可能较慢）
     api.getWatchlist().then(d => setWatchlist(d.data || [])).catch(() => {});
+  };
+
+  const triggerAnalysis = async () => {
+    setTesting(true);
+    try {
+      const res = await fetch('/api/v1/analyze/trigger', { method: 'POST' });
+      const data = await res.json();
+      message.success(data.message || '分析任务已启动');
+    } catch (e: any) {
+      message.error('触发失败: ' + e.message);
+    } finally { setTesting(false); }
   };
 
   const save = async () => {
@@ -77,6 +89,7 @@ export default function ConfigPage() {
         <Space>
           <Button icon={<ReloadOutlined />} onClick={load}>刷新</Button>
           <Button type="primary" icon={<SaveOutlined />} loading={saving} onClick={save}>保存配置</Button>
+          <Button icon={<ThunderboltOutlined />} loading={testing} onClick={triggerAnalysis} style={{ borderColor: 'rgba(245,100,42,0.3)', color: '#f5642a' }}>测试触发</Button>
         </Space>
       </div>
 

@@ -165,7 +165,18 @@ def main() -> int:
 
     try:
         if args.serve:
-            logger.info("启动 API 服务模式")
+            logger.info("启动 API + 定时任务模式")
+            from src.scheduler import Scheduler
+            if config.schedule_enabled:
+                scheduler = Scheduler()
+                scheduler.add_job(
+                    task=lambda: run_sync(reload_config(), dry_run=args.dry_run, no_notify=args.no_notify),
+                    schedule_time=config.schedule_time,
+                    run_immediately=config.run_immediately,
+                    name="daily_analysis",
+                )
+                scheduler.start()
+                logger.info("定时任务已启动，下次执行时间: %s", config.schedule_time)
             from server import start_server
             start_server(config)
             return 0

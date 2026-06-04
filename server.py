@@ -137,6 +137,35 @@ async def analyze_stock(code: str):
 
 
 
+
+# ====== 手动触发分析 ======
+@app.post("/api/v1/analyze/trigger")
+async def trigger_analysis():
+    """手动触发全量分析（用于测试）"""
+    import asyncio
+    logger.info("手动触发全量分析")
+    
+    async def _run():
+        from src.services.analysis_service import AnalysisService
+        from src.formatters import format_analysis_report, format_short_notification
+        from src.notification_sender.factory import send_to_all
+        service = AnalysisService(config)
+        results = await service.full_analysis()
+        if not results:
+            logger.warning("分析结果为空")
+            return
+        report = format_analysis_report(results)
+        summary_lines = ["📊 StockWatcher 分析简报\n"]
+        for code, result in results.items():
+            summary_lines.append(format_short_notification(result))
+            summary_lines.append("")
+        await send_to_all("\n".join(summary_lines), title="StockWatcher 手动触发分析")
+        logger.info("手动分析完成，已推送通知")
+    
+    asyncio.create_task(_run())
+    return {"success": True, "message": "分析任务已启动，完成后将通过通知推送"}
+
+
 # ====== 智能搜索推荐 ======
 @app.get("/api/v1/search/recommend")
 async def search_recommend(market: str = "cn", limit: int = 6):
