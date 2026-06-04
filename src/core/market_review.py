@@ -81,7 +81,13 @@ class MarketReviewer:
         try:
             fields = "f2,f3,f4,f6,f15"
             secids = ",".join(AKSHARE_INDEX_MAP.values())
-            async with httpx.AsyncClient() as client:
+            async with httpx.AsyncClient(
+    headers={
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+        "Referer": "https://quote.eastmoney.com/",
+    },
+    follow_redirects=True,
+) as client:
                 resp = await client.get(
                     AKSHARE_MARKET_URL,
                     params={"fltt": 2, "fields": fields, "secids": secids},
@@ -107,7 +113,13 @@ class MarketReviewer:
     async def fetch_market_overview(self) -> dict:
         """获取市场概览（涨跌家数）"""
         try:
-            async with httpx.AsyncClient() as client:
+            async with httpx.AsyncClient(
+    headers={
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+        "Referer": "https://quote.eastmoney.com/",
+    },
+    follow_redirects=True,
+) as client:
                 resp = await client.get(
                     "https://push2.eastmoney.com/api/qt/ulist.np/get",
                     params={
@@ -128,7 +140,13 @@ class MarketReviewer:
         """获取板块涨幅/跌幅排行"""
         top_sectors, fall_sectors = [], []
         try:
-            async with httpx.AsyncClient() as client:
+            async with httpx.AsyncClient(
+    headers={
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+        "Referer": "https://quote.eastmoney.com/",
+    },
+    follow_redirects=True,
+) as client:
                 resp = await client.get(
                     "https://push2.eastmoney.com/api/qt/clist/get",
                     params={
@@ -180,7 +198,13 @@ class MarketReviewer:
     async def fetch_northbound(self) -> Optional[NorthboundFlow]:
         """获取北向资金数据"""
         try:
-            async with httpx.AsyncClient() as client:
+            async with httpx.AsyncClient(
+    headers={
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+        "Referer": "https://quote.eastmoney.com/",
+    },
+    follow_redirects=True,
+) as client:
                 resp = await client.get(
                     "https://push2.eastmoney.com/api/qt/kamt.kline/get",
                     params={"fields1": "f1,f2,f3,f4", "fields2": "f51,f52,f53,f54,f55"},

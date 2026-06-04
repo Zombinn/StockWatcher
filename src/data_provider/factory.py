@@ -1,4 +1,4 @@
-"""数据提供者工厂"""
+"""数据提供者工厂 - 支持自动降级链"""
 from __future__ import annotations
 
 import logging
@@ -12,6 +12,12 @@ logger = logging.getLogger(__name__)
 _providers: Dict[str, BaseDataProvider] = {}
 
 
+def _has_token(key: str) -> bool:
+    """检查是否有有效 token（非空、非注释）"""
+    from src.config import _get_env
+    return _get_env(key) is not None
+
+
 def get_provider(name: str = "akshare") -> BaseDataProvider:
     """获取数据提供者实例（缓存）"""
     if name not in _providers:
@@ -20,17 +26,21 @@ def get_provider(name: str = "akshare") -> BaseDataProvider:
 
 
 def _create_provider(name: str) -> BaseDataProvider:
-    config = get_config()
-
     if name == "akshare":
         from .akshare_fetcher import AkShareProvider
         return AkShareProvider()
 
+    if name == "efinance":
+        from .efinance_fetcher import EfinanceProvider
+        return EfinanceProvider()
+
     if name == "tushare":
         from .tushare_fetcher import TuShareProvider
-        if config.tushare_token:
-            return TuShareProvider(config.tushare_token)
-        raise ValueError("未配置 TUSHARE_TOKEN")
+        token = _has_token("TUSHARE_TOKEN")
+        if not token:
+            raise ValueError("未配置 TUSHARE_TOKEN 或配置无效")
+        from src.config import get_config
+        return TuShareProvider(get_config().tushare_token)
 
     if name == "yfinance":
         from .yfinance_fetcher import YFinanceProvider
@@ -38,45 +48,61 @@ def _create_provider(name: str) -> BaseDataProvider:
 
     if name == "tickflow":
         from .tickflow_fetcher import TickFlowProvider
-        if config.tickflow_api_key:
-            return TickFlowProvider(config.tickflow_api_key)
-        raise ValueError("未配置 TICKFLOW_API_KEY")
+        if not _has_token("TICKFLOW_API_KEY"):
+            raise ValueError("未配置 TICKFLOW_API_KEY")
+        from src.config import get_config
+        return TickFlowProvider(get_config().tickflow_api_key)
 
     if name == "finnhub":
         from .finnhub_fetcher import FinnhubProvider
-        if config.finnhub_api_key:
-            return FinnhubProvider(config.finnhub_api_key)
-        raise ValueError("未配置 FINNHUB_API_KEY")
+        if not _has_token("FINNHUB_API_KEY"):
+            raise ValueError("未配置 FINNHUB_API_KEY")
+        from src.config import get_config
+        return FinnhubProvider(get_config().finnhub_api_key)
 
     raise ValueError(f"未知数据提供者: {name}")
 
 
 def get_provider_for_code(code: str) -> BaseDataProvider:
-    """根据股票代码自动选择数据提供者"""
+    """根据股票代码自动选择数据提供者，带自动降级"""
     code = code.strip().upper()
     config = get_config()
 
-    # A 股: AkShare (首选) > Tushare > TickFlow
+    # A 股降级链: AkShare > [Tushare if token] > [TickFlow if token]
     if not code.endswith(".HK") and not code.endswith(".US"):
-        if config.tushare_token:
+        # 首选 AkShare（无 token 要求）
+        try:
+            return get_provider("akshare")
+        except Exception as e:
+            logger.debug("AkShare 不可用: %s", e)
+
+        # 次选 Tushare（需 token）
+        if _has_token("TUSHARE_TOKEN"):
             try:
                 return get_provider("tushare")
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("Tushare 不可用: %s", e)
+
+        # 末选 TickFlow（需 token）
+        if _has_token("TICKFLOW_API_KEY"):
+            try:
+                return get_provider("tickflow")
+            except Exception as e:
+                logger.debug("TickFlow 不可用: %s", e)
+
+        # 都不行返回 AkShare 让上游处理异常
         return get_provider("akshare")
 
-    # 港股/美股: YFinance (首选) > Finnhub
-    if config.finnhub_api_key:
+    # 港股/美股降级链: YFinance > Finnhub
+    try:
+        return get_provider("yfinance")
+    except Exception as e:
+        logger.debug("YFinance 不可用: %s", e)
+
+    if _has_token("FINNHUB_API_KEY"):
         try:
             return get_provider("finnhub")
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Finnhub 不可用: %s", e)
+
     return get_provider("yfinance")
-
-
-def get_providers_for_codes(codes: List[str]) -> Dict[str, BaseDataProvider]:
-    """批量获取股票对应的数据提供者"""
-    result = {}
-    for code in codes:
-        result[code] = get_provider_for_code(code)
-    return result
