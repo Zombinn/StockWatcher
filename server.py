@@ -29,10 +29,44 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="StockWatcher API", version="2.0.0", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
-# Serve React frontend (built files)
+# Serve React frontend via middleware
+from fastapi.responses import HTMLResponse
+from starlette.types import ASGIApp, Scope, Receive, Send
+
+class SPAStaticFiles:
+    def __init__(self, app: ASGIApp, index_path: str, assets_dir: str):
+        self.app = app
+        self.index_html = open(index_path, encoding='utf-8').read() if os.path.isfile(index_path) else ''
+        self.assets_dir = assets_dir
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send):
+        if scope['type'] == 'http':
+            path = scope.get('path', '/')
+            # API paths pass through to FastAPI
+            if path.startswith('/api/') or path.startswith('/web') or path in ('/', '/docs', '/redoc', '/openapi.json', '/health'):
+                await self.app(scope, receive, send)
+                return
+            # Static assets from built frontend
+            if path.startswith('/assets/') and self.assets_dir:
+                asset_path = os.path.join(self.assets_dir, path[len('/assets/'):])
+                if os.path.isfile(asset_path):
+                    from starlette.responses import FileResponse
+                    response = FileResponse(asset_path)
+                    await response(scope, receive, send)
+                    return
+            # All other paths serve index.html (SPA)
+            if self.index_html:
+                response = HTMLResponse(self.index_html)
+                await response(scope, receive, send)
+                return
+        await self.app(scope, receive, send)
+
 web_dist = os.path.join(os.path.dirname(__file__), 'web', 'dist')
-if os.path.isdir(web_dist):
-    app.mount('/', StaticFiles(directory=web_dist, html=True), name='frontend')
+index_html_path = os.path.join(web_dist, 'index.html')
+assets_dir = os.path.join(web_dist, 'assets')
+
+if os.path.isfile(index_html_path):
+    app.add_middleware(SPAStaticFiles, index_path=index_html_path, assets_dir=assets_dir)
     logger.info('React 前端已挂载: %s', web_dist)
 
 # ====== 基础 ======
