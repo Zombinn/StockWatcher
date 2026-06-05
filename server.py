@@ -85,30 +85,58 @@ async def health():
 
 
 # ====== 技术分析 ======
-@app.get("/api/v1/analyze")
-async def analyze():
-    from src.utils.cache import cached_call
+import asyncio as _asyncio
+_analyze_task: Optional[_asyncio.Task] = None
 
-    async def _compute():
-        from src.services.analysis_service import AnalysisService
-        from src.formatters import format_analysis_report, format_short_notification
+
+async def _run_analysis_background() -> None:
+    """在后台执行分析并填充缓存，不阻塞请求"""
+    global _analyze_task
+    from src.utils.cache import get_cached, set_cached
+    from src.services.analysis_service import AnalysisService
+    from src.formatters import format_analysis_report, format_short_notification
+    try:
         service = AnalysisService(config)
         results = await service.full_analysis()
         report = format_analysis_report(results)
-        summaries = {}
-        stocks = []
+        summaries, stocks = {}, []
+        import math
+
+        def _safe(v):
+            return 0.0 if (isinstance(v, float) and not math.isfinite(v)) else v
+
         for code, r in results.items():
             summaries[code] = format_short_notification(r)
             stocks.append({
-                "code": code, "name": r.name, "price": r.current_price,
-                "change_pct": r.change_pct, "score": r.score, "trend": r.trend,
+                "code": code, "name": r.name or code,
+                "price": _safe(r.current_price), "change_pct": _safe(r.change_pct),
+                "score": _safe(r.score), "trend": r.trend,
                 "signal": r.signal, "risk": r.risk_level, "suggestion": r.suggestion,
-                "support": r.support, "resistance": r.resistance,
+                "support": _safe(r.support), "resistance": _safe(r.resistance),
             })
         stocks.sort(key=lambda s: s["score"], reverse=True)
-        return {"success": True, "count": len(results), "stocks": stocks, "report": report, "summaries": summaries}
+        set_cached("analyze", {"success": True, "count": len(results), "stocks": stocks,
+                                "report": report, "summaries": summaries})
+        logger.info("后台分析完成，%d 只股票", len(results))
+    except Exception as e:
+        logger.error("后台分析失败: %s", e)
+    finally:
+        _analyze_task = None
 
-    return await cached_call("analyze", 300, _compute)
+
+@app.get("/api/v1/analyze")
+async def analyze():
+    global _analyze_task
+    from src.utils.cache import get_cached
+    cached = get_cached("analyze", ttl=300)
+    if cached is not None:
+        return cached  # 命中缓存，立即返回
+
+    # 缓存未命中：启动后台任务，立即返回 loading 状态
+    if _analyze_task is None or _analyze_task.done():
+        _analyze_task = _asyncio.create_task(_run_analysis_background())
+        logger.info("已触发后台分析任务")
+    return {"success": True, "loading": True, "count": 0, "stocks": [], "report": "", "summaries": {}}
 
 
 @app.get("/api/v1/stocks/{code}")

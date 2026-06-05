@@ -12,7 +12,15 @@ export default function AnalysisPage() {
 
   const load = async () => {
     setLoading(true); setError('');
-    try { const d = await api.analyze(); setData(d); }
+    try {
+      // 分析是后台任务；若服务端返回 loading:true 则轮询直到完成
+      let d = await api.analyze();
+      while (d.loading) {
+        await new Promise(r => setTimeout(r, 8000));
+        d = await api.analyze();
+      }
+      setData(d);
+    }
     catch (e: any) { setError(e.message); }
     finally { setLoading(false); }
   };
@@ -80,7 +88,7 @@ export default function AnalysisPage() {
           <div className="loading-breathe" style={{ marginBottom: 16 }}>
             <div className="dot-pulse" style={{ margin: '0 auto' }} />
           </div>
-          <Text className="loading-text" style={{ fontSize: 13 }}>正在分析中...</Text>
+          <Text className="loading-text" style={{ fontSize: 13 }}>后台分析中（首次约需 1-2 分钟）…</Text>
         </div>
       ) : data && data.stocks?.length ? (
         <>

@@ -20,9 +20,9 @@ _SINA_SNAPSHOT: dict = {"ts": 0.0, "df": None}
 
 
 def _sina_spot_snapshot():
-    """返回新浪 A 股全市场快照（30s 缓存）"""
+    """返回新浪 A 股全市场快照（5 分钟缓存，避免 7 只股票每只各下载一次全表）"""
     now = time.time()
-    if _SINA_SNAPSHOT["df"] is not None and now - _SINA_SNAPSHOT["ts"] < 30:
+    if _SINA_SNAPSHOT["df"] is not None and now - _SINA_SNAPSHOT["ts"] < 300:
         return _SINA_SNAPSHOT["df"]
     df = ak.stock_zh_a_spot()
     _SINA_SNAPSHOT["df"] = df

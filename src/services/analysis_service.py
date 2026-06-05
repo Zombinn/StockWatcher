@@ -72,6 +72,17 @@ class AnalysisService:
             logger.warning("自选股为空")
             return {}
 
+        # A 股存在时提前预热 Sina 快照（一次性下载全量，后续各股复用缓存）
+        a_share_codes = [c for c in stock_list if not c.endswith((".HK", ".US")) and not c.isalpha()]
+        if a_share_codes:
+            from src.utils.blocking import run_blocking
+            from src.data_provider.akshare_fetcher import _sina_spot_snapshot
+            try:
+                await run_blocking(_sina_spot_snapshot)
+                logger.info("新浪快照预热完成")
+            except Exception as e:
+                logger.warning("新浪快照预热失败: %s", e)
+
         logger.info("开始分析 %d 只股票", len(stock_list))
         results = await self.analyze_batch(stock_list)
         logger.info("分析完成，成功 %d 只", len(results))

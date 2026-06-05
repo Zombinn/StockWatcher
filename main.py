@@ -152,6 +152,16 @@ async def run_backtest(config, code: str, strategy: str) -> None:
 
 
 def run_sync(config, dry_run: bool = False, no_notify: bool = False) -> None:
+    """定时任务调度器的同步入口。
+    在 --serve 模式下，分析任务由服务的事件循环负责执行（run_blocking 的单线程），
+    调度器线程用 asyncio.run() 会产生第二个事件循环与服务竞争同一个 akshare 单线程，
+    导致 V8 崩溃。因此 --serve 下跳过定时分析（分析由 /api/v1/analyze 按需触发+缓存）；
+    仅在纯 CLI (--schedule) 模式下才实际执行。
+    """
+    import os
+    if os.getenv("_SW_SERVE_MODE") == "1":
+        # serve 模式：分析通过 API 端点触发，调度器仅负责发送通知
+        return
     asyncio.run(run_analysis(config, dry_run, no_notify))
 
 
@@ -180,6 +190,8 @@ def main() -> int:
                 import threading
                 threading.Thread(target=scheduler.start, daemon=True).start()
                 logger.info("定时任务已在后台启动，下次执行时间: %s", config.schedule_time)
+            import os
+            os.environ["_SW_SERVE_MODE"] = "1"
             from server import start_server
             start_server(config)
             return 0
