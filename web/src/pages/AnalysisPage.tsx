@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Card, Button, Row, Col, Statistic, Table, Tag, Alert, Typography, Space, Empty } from 'antd';
-import { ReloadOutlined, RiseOutlined, FallOutlined } from '@ant-design/icons';
+import { Card, Button, Row, Col, Statistic, Table, Tag, Alert, Typography, Space, Empty, Drawer } from 'antd';
+import { ReloadOutlined, RiseOutlined, FallOutlined, LineChartOutlined } from '@ant-design/icons';
 import { api } from '../api';
+import ForecastChart from '../components/ForecastChart';
 
 const { Text } = Typography;
 
@@ -9,6 +10,7 @@ export default function AnalysisPage() {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<any>(null);
   const [error, setError] = useState('');
+  const [forecastStock, setForecastStock] = useState<{code:string;name:string}|null>(null);
 
   const load = async () => {
     setLoading(true); setError('');
@@ -99,7 +101,8 @@ export default function AnalysisPage() {
               const scoreColor = s.score >= 70 ? '#43a047' : s.score >= 40 ? '#f9a825' : '#e53935';
               return (
                 <Col xs={24} sm={12} md={8} lg={6} key={s.code} className={`fade-in fade-in-delay-${idx % 5}`}>
-                  <Card className="glass-card" size="small" hoverable>
+                  <Card className="glass-card" size="small" hoverable
+                    onClick={() => setForecastStock({ code: s.code, name: s.name || s.code })}>
                     <Statistic
                       title={<span style={{ color: '#64748b' }}>{s.name || s.code} <Text type="secondary" style={{ fontSize: 11 }}>{s.code}</Text></span>}
                       value={s.price ?? 0}
@@ -115,7 +118,10 @@ export default function AnalysisPage() {
                         <Tag color={s.signal?.includes('买') ? 'red' : s.signal?.includes('卖') ? 'green' : 'default'}
                           style={{ borderRadius: 4, margin: 0 }}>{s.signal}</Tag>
                       </Space>
-                      <span style={{ color: scoreColor, fontWeight: 700, fontSize: 18 }}>{s.score?.toFixed(0)}</span>
+                      <Space size={6}>
+                        <span style={{ color: scoreColor, fontWeight: 700, fontSize: 18 }}>{s.score?.toFixed(0)}</span>
+                        <LineChartOutlined style={{ color: '#f5642a', opacity: 0.6, fontSize: 14 }} title="点击查看预测" />
+                      </Space>
                     </div>
                   </Card>
                 </Col>
@@ -134,6 +140,25 @@ export default function AnalysisPage() {
       ) : (
         <Card className="glass-card"><Text type="secondary">暂无数据，请点击"刷新分析"</Text></Card>
       )}
+
+      {/* TimesFM 预测抽屉 */}
+      <Drawer
+        title={
+          <Space>
+            <LineChartOutlined style={{ color: '#f5642a' }} />
+            <span>{forecastStock?.name} ({forecastStock?.code})</span>
+          </Space>
+        }
+        placement="right"
+        width={520}
+        open={!!forecastStock}
+        onClose={() => setForecastStock(null)}
+        styles={{ body: { padding: '16px 20px' } }}
+      >
+        {forecastStock && (
+          <ForecastChart code={forecastStock.code} name={forecastStock.name} />
+        )}
+      </Drawer>
     </div>
   );
 }

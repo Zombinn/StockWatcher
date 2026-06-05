@@ -250,6 +250,40 @@ async def search_suggest(q: str = "", market: str = "cn", limit: int = 8):
     return {"success": True, "data": results}
 
 
+# ====== TimesFM 价格预测 ======
+@app.get("/api/v1/stocks/{code}/forecast")
+async def stock_forecast(code: str, horizon: int = 14):
+    """TimesFM 时间序列预测：基于历史 K 线预测未来 horizon 个交易日价格"""
+    from src.utils.cache import get_cached, set_cached
+    cache_key = f"forecast_{code}_{horizon}"
+    cached = get_cached(cache_key, ttl=3600)   # 预测结果缓存 1 小时
+    if cached:
+        return cached
+
+    from src.services.stock_service import StockService
+    from src.llm.timesfm_forecaster import forecast as tfm_forecast
+    stock_service = StockService(config)
+    klines = await stock_service.get_kline_history(code, count=min(horizon * 8, 512))
+    if not klines:
+        raise HTTPException(404, f"无法获取 {code} 的行情数据")
+
+    result = await tfm_forecast(klines, horizon=horizon)
+    if not result:
+        raise HTTPException(503, "TimesFM 预测失败（数据不足或模型未就绪）")
+
+    payload = {
+        "success": True, "code": code, "horizon": horizon,
+        "model": result.model,
+        "last_date": result.last_date, "last_price": result.last_price,
+        "dates": result.dates,
+        "forecast": result.forecast,
+        "lower_90": result.lower_90, "upper_90": result.upper_90,
+        "lower_80": result.lower_80, "upper_80": result.upper_80,
+    }
+    set_cached(cache_key, payload)
+    return payload
+
+
 # ====== 个股新闻 ======
 @app.get("/api/v1/stocks/{code}/news")
 async def stock_news(code: str, limit: int = 10):

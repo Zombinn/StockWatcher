@@ -48,3 +48,7 @@ isort>=5.13.0
 pytest>=8.0.0
 pytest-asyncio>=0.23.0
 pytest-cov>=4.1.0
+
+# TimesFM 时序预测（Python 3.12 需从 GitHub 安装）
+# pip install git+https://github.com/google-research/timesfm.git
+# pip install safetensors  # 权重加载

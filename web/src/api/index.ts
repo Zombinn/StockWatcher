@@ -28,6 +28,10 @@ export const api = {
   importPositions: (text: string) =>
     request<any>('/portfolio/import', { method: 'POST', body: JSON.stringify({ text }) }),
 
+  // TimesFM 价格预测
+  stockForecast: (code: string, horizon = 14) =>
+    request<any>(`/stocks/${encodeURIComponent(code)}/forecast?horizon=${horizon}`),
+
   // 选股筛选（真实行情 + 技术分析）
   screenStocks: (market: string, strategy: string, limit = 12) =>
     request<any>(`/screen?market=${market}&strategy=${encodeURIComponent(strategy)}&limit=${limit}`),
