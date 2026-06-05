@@ -137,6 +137,15 @@ async def analyze_stock(code: str):
 
 
 
+# ====== 选股筛选 ======
+@app.get("/api/v1/screen")
+async def screen_stocks(market: str = "cn", strategy: str = "top_gainers", limit: int = 12):
+    """真实行情 + 技术分析选股（非静态列表）"""
+    from src.services.screening_service import screen
+    results = await screen(market, strategy, limit)
+    return {"success": True, "count": len(results), "data": results}
+
+
 # ====== 手动触发分析 ======
 @app.post("/api/v1/analyze/trigger")
 async def trigger_analysis():

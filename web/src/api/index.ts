@@ -28,6 +28,10 @@ export const api = {
   importPositions: (text: string) =>
     request<any>('/portfolio/import', { method: 'POST', body: JSON.stringify({ text }) }),
 
+  // 选股筛选（真实行情 + 技术分析）
+  screenStocks: (market: string, strategy: string, limit = 12) =>
+    request<any>(`/screen?market=${market}&strategy=${encodeURIComponent(strategy)}&limit=${limit}`),
+
   // 代码下拉（自选 + 持仓去重）
   getSymbols: () => request<any>('/symbols'),
 
