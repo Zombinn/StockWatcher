@@ -87,29 +87,28 @@ async def health():
 # ====== 技术分析 ======
 @app.get("/api/v1/analyze")
 async def analyze():
-    from src.utils.cache import get_cached, set_cached
-    cached = get_cached("analyze", ttl=300)
-    if cached is not None:
-        return cached
-    from src.services.analysis_service import AnalysisService
-    from src.formatters import format_analysis_report, format_short_notification
-    service = AnalysisService(config)
-    results = await service.full_analysis()
-    report = format_analysis_report(results)
-    summaries = {}
-    stocks = []
-    for code, r in results.items():
-        summaries[code] = format_short_notification(r)
-        stocks.append({
-            "code": code, "name": r.name, "price": r.current_price,
-            "change_pct": r.change_pct, "score": r.score, "trend": r.trend,
-            "signal": r.signal, "risk": r.risk_level, "suggestion": r.suggestion,
-            "support": r.support, "resistance": r.resistance,
-        })
-    stocks.sort(key=lambda s: s["score"], reverse=True)
-    payload = {"success": True, "count": len(results), "stocks": stocks, "report": report, "summaries": summaries}
-    set_cached("analyze", payload)
-    return payload
+    from src.utils.cache import cached_call
+
+    async def _compute():
+        from src.services.analysis_service import AnalysisService
+        from src.formatters import format_analysis_report, format_short_notification
+        service = AnalysisService(config)
+        results = await service.full_analysis()
+        report = format_analysis_report(results)
+        summaries = {}
+        stocks = []
+        for code, r in results.items():
+            summaries[code] = format_short_notification(r)
+            stocks.append({
+                "code": code, "name": r.name, "price": r.current_price,
+                "change_pct": r.change_pct, "score": r.score, "trend": r.trend,
+                "signal": r.signal, "risk": r.risk_level, "suggestion": r.suggestion,
+                "support": r.support, "resistance": r.resistance,
+            })
+        stocks.sort(key=lambda s: s["score"], reverse=True)
+        return {"success": True, "count": len(results), "stocks": stocks, "report": report, "summaries": summaries}
+
+    return await cached_call("analyze", 300, _compute)
 
 
 @app.get("/api/v1/stocks/{code}")
@@ -260,25 +259,23 @@ async def analyze_with_llm(code: str):
 # ====== 大盘复盘 ======
 @app.get("/api/v1/market/review")
 async def market_review():
-    from src.utils.cache import get_cached, set_cached
-    cached = get_cached("market_review", ttl=300)
-    if cached is not None:
-        return cached
-    from src.core.market_review import MarketReviewer
-    reviewer = MarketReviewer()
-    result = await reviewer.review()
-    payload = {
-        "success": True,
-        "indices": [i.__dict__ for i in result.indices],
-        "top_sectors": [s.__dict__ for s in result.top_sectors[:5]],
-        "fall_sectors": [s.__dict__ for s in result.fall_sectors[:5]],
-        "northbound": result.northbound.__dict__ if result.northbound else None,
-        "market_summary": result.market_summary,
-        "llm_analysis": result.llm_analysis,
-        "timestamp": result.timestamp,
-    }
-    set_cached("market_review", payload)
-    return payload
+    from src.utils.cache import cached_call
+
+    async def _compute():
+        from src.core.market_review import MarketReviewer
+        result = await MarketReviewer().review()
+        return {
+            "success": True,
+            "indices": [i.__dict__ for i in result.indices],
+            "top_sectors": [s.__dict__ for s in result.top_sectors[:5]],
+            "fall_sectors": [s.__dict__ for s in result.fall_sectors[:5]],
+            "northbound": result.northbound.__dict__ if result.northbound else None,
+            "market_summary": result.market_summary,
+            "llm_analysis": result.llm_analysis,
+            "timestamp": result.timestamp,
+        }
+
+    return await cached_call("market_review", 300, _compute)
 
 
 # ====== 持仓管理 ======
@@ -358,16 +355,14 @@ async def get_symbols():
 # ====== 自选股 ======
 @app.get("/api/v1/watchlist")
 async def get_watchlist():
-    from src.services.watchlist_service import WatchlistService
-    from src.utils.cache import get_cached, set_cached
-    cached = get_cached("watchlist", ttl=60)
-    if cached is not None:
-        return cached
-    service = WatchlistService()
-    quotes = await service.get_quotes()
-    payload = {"success": True, "count": len(quotes), "data": quotes}
-    set_cached("watchlist", payload)
-    return payload
+    from src.utils.cache import cached_call
+
+    async def _compute():
+        from src.services.watchlist_service import WatchlistService
+        quotes = await WatchlistService().get_quotes()
+        return {"success": True, "count": len(quotes), "data": quotes}
+
+    return await cached_call("watchlist", 60, _compute)
 
 
 @app.post("/api/v1/watchlist")

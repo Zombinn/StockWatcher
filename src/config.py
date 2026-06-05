@@ -25,6 +25,8 @@ def _is_valid(value: Optional[str]) -> bool:
 
 def setup_env() -> None:
     """加载 .env 文件到环境变量"""
+    # 关闭 akshare 内部 tqdm 进度条（"Please wait for a moment" 刷屏）
+    os.environ.setdefault("TQDM_DISABLE", "1")
     env_path = Path(__file__).resolve().parent.parent / ".env"
     if env_path.exists():
         load_dotenv(env_path, override=False)

@@ -12,6 +12,7 @@ import httpx
 from src.config import get_config
 
 logger = logging.getLogger(__name__)
+from src.utils.blocking import run_blocking
 
 AKSHARE_INDEX_MAP = {
     "上证指数": "1.000001",
@@ -123,8 +124,6 @@ class MarketReviewer:
 
     async def _fetch_indices_sina(self) -> List[IndexData]:
         """新浪指数源（东方财富不可达时降级，不依赖 eastmoney）"""
-        import asyncio
-
         def _run() -> List[IndexData]:
             try:
                 import akshare as ak
@@ -149,7 +148,7 @@ class MarketReviewer:
                     continue
             return [seen[n] for n in order if n in seen]
 
-        return await asyncio.to_thread(_run)
+        return await run_blocking(_run)
 
     async def fetch_sectors(self, top: int = 10) -> tuple[List[SectorData], List[SectorData]]:
         """获取板块涨幅/跌幅排行"""
@@ -197,8 +196,6 @@ class MarketReviewer:
 
     async def _fetch_sectors_sina(self, top: int = 10) -> tuple[List[SectorData], List[SectorData]]:
         """新浪行业板块源（东方财富不可达时降级）"""
-        import asyncio
-
         def _pct(v) -> float:
             try:
                 return float(str(v).replace("%", "").strip())
@@ -218,7 +215,7 @@ class MarketReviewer:
             fall_s = [SectorData(name=n, change_pct=c) for n, c in rows[-top:][::-1]]
             return top_s, fall_s
 
-        return await asyncio.to_thread(_run)
+        return await run_blocking(_run)
 
     async def fetch_northbound(self) -> Optional[NorthboundFlow]:
         """获取北向资金数据"""

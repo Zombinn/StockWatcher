@@ -175,8 +175,10 @@ def main() -> int:
                     run_immediately=config.run_immediately,
                     name="daily_analysis",
                 )
-                scheduler.start()
-                logger.info("定时任务已启动，下次执行时间: %s", config.schedule_time)
+                # 调度器自带阻塞循环，放后台线程，避免挡住 API 启动
+                import threading
+                threading.Thread(target=scheduler.start, daemon=True).start()
+                logger.info("定时任务已在后台启动，下次执行时间: %s", config.schedule_time)
             from server import start_server
             start_server(config)
             return 0

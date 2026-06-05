@@ -1,7 +1,6 @@
 """AkShare 数据获取（A股首选数据源，无需 token）"""
 from __future__ import annotations
 
-import asyncio
 import logging
 import random
 import time
@@ -12,6 +11,7 @@ import akshare as ak
 import pandas as pd
 
 from .base import BaseDataProvider, KLine, StockInfo, StockPrice
+from src.utils.blocking import run_blocking
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +68,7 @@ class AkShareProvider(BaseDataProvider):
 
     async def get_realtime_quote(self, code: str) -> Optional[StockPrice]:
         """获取实时行情（同步调用放入线程，避免阻塞事件循环）"""
-        return await asyncio.to_thread(self._get_realtime_quote_sync, code)
+        return await run_blocking(self._get_realtime_quote_sync, code)
 
     def _get_realtime_quote_sync(self, code: str) -> Optional[StockPrice]:
         """获取实时行情（新浪快照，带缓存）"""
@@ -103,7 +103,7 @@ class AkShareProvider(BaseDataProvider):
 
     async def get_kline(self, code: str, period: str = "daily", count: int = 120) -> List[KLine]:
         """获取 K 线数据（同步调用放入线程，避免阻塞事件循环）"""
-        return await asyncio.to_thread(self._get_kline_sync, code, period, count)
+        return await run_blocking(self._get_kline_sync, code, period, count)
 
     def _get_kline_sync(self, code: str, period: str = "daily", count: int = 120) -> List[KLine]:
         """获取 K 线数据（新浪接口，东方财富已禁用 — 网络不可达）"""
@@ -137,7 +137,7 @@ class AkShareProvider(BaseDataProvider):
 
     async def get_stock_info(self, code: str) -> Optional[StockInfo]:
         """获取股票信息（同步调用放入线程，避免阻塞事件循环）"""
-        return await asyncio.to_thread(self._get_stock_info_sync, code)
+        return await run_blocking(self._get_stock_info_sync, code)
 
     def _get_stock_info_sync(self, code: str) -> Optional[StockInfo]:
         try:
@@ -147,7 +147,8 @@ class AkShareProvider(BaseDataProvider):
             # 从新浪快照获取股票信息（避免触发 libmini_racer）
             df = _sina_spot_snapshot()
             if df is not None and not df.empty:
-                row = df[df["代码"] == clean]
+                # 新浪代码形如 sz300750/sh600000，需按后缀匹配纯数字代码
+                row = df[df["代码"].str.endswith(clean)]
                 if not row.empty:
                     r = row.iloc[0]
                     return StockInfo(

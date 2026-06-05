@@ -39,11 +39,21 @@ function AppInner() {
   const [page, setPage] = useState('home');
   const [agentOpen, setAgentOpen] = useState(true);
   const [agentWidth, setAgentWidth] = useState(400);
-  const PageComponent = pages[page] || AnalysisPage;
+  // keep-alive：记录访问过的页面，首次访问才挂载，之后保留在 DOM（隐藏），切回不重新请求
+  const [visited, setVisited] = useState<Set<string>>(() => new Set(['home']));
+
+  const navigate = (key: string) => {
+    setVisited(prev => (prev.has(key) ? prev : new Set(prev).add(key)));
+    setPage(key);
+  };
 
   // 允许任意页面通过事件跳转（如配置页「去配置」跳到持仓页）
   useEffect(() => {
-    const handler = (e: Event) => setPage((e as CustomEvent<string>).detail);
+    const handler = (e: Event) => {
+      const key = (e as CustomEvent<string>).detail;
+      setVisited(prev => (prev.has(key) ? prev : new Set(prev).add(key)));
+      setPage(key);
+    };
     window.addEventListener('sw-navigate', handler);
     return () => window.removeEventListener('sw-navigate', handler);
   }, []);
@@ -98,7 +108,7 @@ function AppInner() {
           mode="inline"
           selectedKeys={[page]}
           items={menuItems}
-          onClick={({ key }) => setPage(key)}
+          onClick={({ key }) => navigate(key)}
           style={{
             background: 'transparent', borderRight: 0,
             fontSize: 14, padding: '4px 0',
@@ -115,8 +125,16 @@ function AppInner() {
           padding: 24, overflow: 'auto', minHeight: '100vh',
           background: '#ffffff',
         }}>
-          {/* 仅渲染当前页，避免一次性触发所有页面的接口 */}
-          <PageComponent />
+          {/* keep-alive：只渲染访问过的页面；非当前页用 display:none 隐藏，保留状态、切回不重拉 */}
+          {menuItems.map(item => {
+            if (!visited.has(item.key)) return null;
+            const Comp = pages[item.key] || AnalysisPage;
+            return (
+              <div key={item.key} style={{ display: page === item.key ? '' : 'none' }}>
+                <Comp />
+              </div>
+            );
+          })}
         </Content>
       </Layout>
 

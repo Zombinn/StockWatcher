@@ -4,6 +4,7 @@ from __future__ import annotations
 import logging
 import signal
 import sys
+import threading
 import time
 from datetime import datetime, timezone
 from typing import Any, Callable, Dict, List, Optional
@@ -51,13 +52,15 @@ class Scheduler:
         self._running = True
         logger.info("调度器已启动，等待定时任务...")
 
-        def _shutdown(signum, frame):
-            logger.info("收到退出信号，调度器关闭")
-            self._running = False
-            sys.exit(0)
+        # 信号只能在主线程注册；后台线程运行时跳过
+        if threading.current_thread() is threading.main_thread():
+            def _shutdown(signum, frame):
+                logger.info("收到退出信号，调度器关闭")
+                self._running = False
+                sys.exit(0)
 
-        signal.signal(signal.SIGINT, _shutdown)
-        signal.signal(signal.SIGTERM, _shutdown)
+            signal.signal(signal.SIGINT, _shutdown)
+            signal.signal(signal.SIGTERM, _shutdown)
 
         while self._running:
             schedule.run_pending()
