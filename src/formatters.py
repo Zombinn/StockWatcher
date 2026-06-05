@@ -57,12 +57,18 @@ def _format_single_stock(result: AnalysisResult) -> List[str]:
     return lines
 
 
+_SIGNAL_EMOJI = {"买入": "🟢", "卖出": "🔴", "持有": "🟡", "观望": "⚪"}
+SIGNAL_LEGEND = "🟢买入 🟡持有 ⚪观望 🔴卖出"
+
+
 def format_short_notification(result: AnalysisResult) -> str:
     """格式化简短推送通知"""
-    emoji = {"买入": "🟢", "卖出": "🔴", "持有": "🟡", "观望": "⚪"}
-    signal_emoji = emoji.get(result.signal, "⚪")
+    emoji = _SIGNAL_EMOJI.get(result.signal, "⚪")
+    # 名称和代码都显示，避免美股等只显示一个
+    name_part = result.name if result.name else result.code
+    code_part = f"({result.code})" if result.code and result.code != result.name else ""
     return (
-        f"{signal_emoji} {result.name}({result.code})\n"
+        f"{emoji} {name_part}{code_part}\n"
         f"价格: {result.current_price:.2f} | 涨跌: {result.change_pct:+.2f}%\n"
         f"评分: {result.score:.0f}/100 | 趋势: {result.trend}\n"
         f"建议: {result.suggestion} | 风险: {result.risk_level}\n"

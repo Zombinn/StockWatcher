@@ -50,6 +50,7 @@ class YFinanceProvider(BaseDataProvider):
             results = []
             for date, r in df.iterrows():
                 results.append(KLine(
+                    code=code,
                     date=str(date.date()),
                     open=float(r["Open"]),
                     high=float(r["High"]),

@@ -107,7 +107,8 @@ async def run_analysis(config, dry_run: bool = False, no_notify: bool = False) -
     if no_notify:
         return
 
-    summary_lines = ["📊 StockWatcher 分析简报\n"]
+    from src.formatters import SIGNAL_LEGEND
+    summary_lines = [f"📊 StockWatcher 分析简报\n{SIGNAL_LEGEND}\n"]
     for code, result in results.items():
         summary_lines.append(format_short_notification(result))
         summary_lines.append("")
