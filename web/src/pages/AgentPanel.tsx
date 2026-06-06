@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
-import { Input, Button, Spin, Typography, Tag, Alert, Space } from 'antd';
-import { SendOutlined, RobotOutlined, UserOutlined, ClearOutlined, BulbOutlined } from '@ant-design/icons';
+import { Input, Button, Spin, Typography, Tag, Alert, Space, Tooltip } from 'antd';
+import { SendOutlined, RobotOutlined, UserOutlined, ClearOutlined, BulbOutlined, InfoCircleOutlined } from '@ant-design/icons';
 import { api } from '../api';
 import SymbolSelect from '../components/SymbolSelect';
 
@@ -15,12 +15,13 @@ interface Message {
 const quickQuestions = ['技术面分析', 'MACD 信号', '估值如何', '支撑压力'];
 
 export default function AgentPanel() {
-  const [code, setCode] = useState('AAPL');
+  const [code, setCode] = useState('');
   const [input, setInput] = useState('分析一下技术面');
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [modelInfo, setModelInfo] = useState<{ name: string; base: string } | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -28,6 +29,16 @@ export default function AgentPanel() {
       listRef.current.scrollTop = listRef.current.scrollHeight;
     }
   }, [messages]);
+
+  // 页面加载时读取当前 LLM 配置，告知用户问股使用的模型
+  useEffect(() => {
+    api.getConfigValues().then(d => {
+      const v = d.values || {};
+      const model = v.OPENAI_MODEL || v.LLM_MODEL || '';
+      const base  = v.OPENAI_BASE_URL || '';
+      if (model) setModelInfo({ name: model, base });
+    }).catch(() => {});
+  }, []);
 
   const chat = async () => {
     if (!code) { setError('请输入股票代码'); return; }
@@ -69,9 +80,35 @@ export default function AgentPanel() {
         minHeight: 0,
       }}>
         {messages.length === 0 && !loading && (
-          <div style={{ textAlign: 'center', paddingTop: 40, color: '#94a3b8' }}>
+          <div style={{ textAlign: 'center', paddingTop: 32, color: '#94a3b8' }}>
             <RobotOutlined style={{ fontSize: 32, display: 'block', marginBottom: 8, opacity: 0.35 }} />
             <Text type="secondary" style={{ fontSize: 13 }}>选择股票开始提问</Text>
+            {modelInfo && (
+              <div style={{ marginTop: 12 }}>
+                <Tooltip title={
+                  <div style={{ fontSize: 12 }}>
+                    <div>分析方式：LLM 多轮对话</div>
+                    <div>技术数据：MA / MACD / RSI / KDJ / BOLL</div>
+                    {modelInfo.base && <div>接口：{modelInfo.base}</div>}
+                  </div>
+                }>
+                  <Tag icon={<InfoCircleOutlined />} style={{
+                    cursor: 'default', borderRadius: 6, fontSize: 12,
+                    color: '#64748b', background: 'rgba(0,0,0,0.03)',
+                    border: '1px solid rgba(0,0,0,0.08)',
+                  }}>
+                    {modelInfo.name}
+                  </Tag>
+                </Tooltip>
+              </div>
+            )}
+            {!modelInfo && (
+              <div style={{ marginTop: 12 }}>
+                <Tag icon={<InfoCircleOutlined />} color="warning" style={{ borderRadius: 6, fontSize: 12 }}>
+                  未配置 LLM — 将使用模板回复
+                </Tag>
+              </div>
+            )}
           </div>
         )}
         {messages.map((m, i) => (
