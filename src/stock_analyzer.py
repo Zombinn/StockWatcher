@@ -106,7 +106,11 @@ class StockAnalyzer:
             "amount": [k.amount for k in klines],
             "change_pct": [k.change_pct for k in klines],
         }
-        return pd.DataFrame(data)
+        df = pd.DataFrame(data)
+        # akshare 日线接口不返回涨跌幅字段，从收盘价序列补算
+        if df["change_pct"].abs().sum() == 0 and len(df) >= 2:
+            df["change_pct"] = df["close"].pct_change() * 100
+        return df
 
     def _compute_indicators(self, df: pd.DataFrame) -> TechnicalIndicators:
         ind = TechnicalIndicators()

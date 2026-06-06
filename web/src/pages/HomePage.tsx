@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Card, Button, Input, Tag, Typography, Space, Row, Col, Spin, Alert, Empty, Divider, Select } from 'antd';
+import { Card, Button, Input, Tag, Typography, Space, Row, Col, Spin, Alert, Empty, Divider, Select, message } from 'antd';
 import {
   SearchOutlined, RobotOutlined, BarChartOutlined, LineChartOutlined,
   RiseOutlined, FallOutlined, ReloadOutlined, ThunderboltOutlined,
-  SafetyOutlined, GlobalOutlined, StarOutlined,
+  SafetyOutlined, GlobalOutlined, StarOutlined, CheckOutlined,
 } from '@ant-design/icons';
 import { api } from '../api';
 import { analysisApi, type StockCandidate } from '../api/analysisApi';
@@ -88,7 +88,9 @@ function SectorList({ title, items, icon, up }: { title: string; items: any[]; i
 }
 
 /* ─────────── 分析报告 ─────────── */
-function ReportPreview({ result }: { result: any }) {
+function ReportPreview({ result, inWatchlist, onAdd, addingToWl }: {
+  result: any; inWatchlist?: boolean; onAdd?: () => void; addingToWl?: boolean;
+}) {
   if (!result) return null;
   const isUp = (result.change_pct ?? 0) >= 0;
   return (
@@ -105,9 +107,21 @@ function ReportPreview({ result }: { result: any }) {
             {isUp ? '+' : ''}{result.change_pct?.toFixed(2)}%
           </Tag>
         </Space>
-        <div style={{ fontSize: 22, fontWeight: 700, color: '#1a1a2e' }}>
-          {result.price?.toFixed(2)}
-        </div>
+        <Space size={10} align="center">
+          <Button
+            size="small"
+            icon={inWatchlist ? <CheckOutlined /> : <StarOutlined />}
+            disabled={inWatchlist}
+            loading={addingToWl}
+            onClick={onAdd}
+            style={inWatchlist ? { color: '#94a3b8', borderColor: '#e2e8f0' } : { color: '#f5642a', borderColor: '#f5642a' }}
+          >
+            {inWatchlist ? '已在自选' : '加入自选'}
+          </Button>
+          <div style={{ fontSize: 22, fontWeight: 700, color: '#1a1a2e' }}>
+            {result.price?.toFixed(2)}
+          </div>
+        </Space>
       </div>
 
       <Row gutter={12} style={{ marginBottom: 12 }}>
@@ -212,13 +226,23 @@ export default function HomePage() {
   const [showDropdown, setShowDropdown] = useState(false);
   const [recommend, setRecommend] = useState<StockCandidate[]>([]);
   const [symbols, setSymbols] = useState<StockCandidate[]>([]);
+  const [watchlistCodes, setWatchlistCodes] = useState<Set<string>>(new Set());
+  const [addingToWl, setAddingToWl] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
+
+  const loadWatchlist = useCallback(async () => {
+    try {
+      const r = await api.getWatchlist();
+      setWatchlistCodes(new Set((r.data || []).map((s: any) => s.code as string)));
+    } catch {}
+  }, []);
 
   useEffect(() => {
     api.marketReview()
       .then(d => setMarketData(d))
       .catch(() => {})
       .finally(() => setMarketLoading(false));
+    loadWatchlist();
   }, []);
 
   // Load recommendations when market changes
@@ -283,6 +307,20 @@ export default function HomePage() {
     setQuery(item.code);
     setShowDropdown(false);
     handleSearch(item.code);
+  };
+
+  const addToWatchlist = async () => {
+    if (!result?.code) return;
+    setAddingToWl(true);
+    try {
+      await api.addWatchlist(result.code);
+      await loadWatchlist();
+      message.success(`${result.code} 已加入自选`);
+    } catch (e: any) {
+      message.error(e.message || '加入自选失败');
+    } finally {
+      setAddingToWl(false);
+    }
   };
 
   return (
@@ -400,7 +438,7 @@ export default function HomePage() {
 
       {result && !analyzing && (
         <>
-          <ReportPreview result={result} />
+          <ReportPreview result={result} inWatchlist={watchlistCodes.has(result.code)} onAdd={addToWatchlist} addingToWl={addingToWl} />
           <StrategyPoints result={result} />
           {result.suggestion && (
             <Card className="glass-card" bodyStyle={{ padding: '12px 16px' }} style={{ marginTop: 12 }}>

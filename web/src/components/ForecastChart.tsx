@@ -58,6 +58,8 @@ export default function ForecastChart({ code, name }: Props) {
     ? ((data.forecast[data.forecast.length - 1] - data.last_price) / data.last_price * 100)
     : null;
 
+  const forecastOnly = chartData.filter((d: any) => d.type === 'forecast');
+
   const config = {
     data: chartData,
     xField: 'date',
@@ -74,19 +76,21 @@ export default function ForecastChart({ code, name }: Props) {
         { channel: 'y', name: '预测价', valueFormatter: (v: number) => v?.toFixed(2) },
       ],
     },
-    // Confidence band: 90%
-    annotations: data ? [
+    // Confidence bands using G2 v5 children marks (rangeArea)
+    children: data && forecastOnly.length > 0 ? [
       {
-        type: 'region',
-        data: chartData.filter((d: any) => d.type === 'forecast'),
-        encode: { x: 'date', y: 'lower90', y1: 'upper90' },
-        style: { fill: '#f5642a', fillOpacity: 0.08 },
+        type: 'area',
+        data: forecastOnly,
+        encode: { x: 'date', y: ['lower90', 'upper90'] },
+        style: { fill: '#f5642a', fillOpacity: 0.07 },
+        tooltip: false,
       },
       {
-        type: 'region',
-        data: chartData.filter((d: any) => d.type === 'forecast'),
-        encode: { x: 'date', y: 'lower80', y1: 'upper80' },
-        style: { fill: '#f5642a', fillOpacity: 0.12 },
+        type: 'area',
+        data: forecastOnly,
+        encode: { x: 'date', y: ['lower80', 'upper80'] },
+        style: { fill: '#f5642a', fillOpacity: 0.10 },
+        tooltip: false,
       },
     ] : [],
   };
