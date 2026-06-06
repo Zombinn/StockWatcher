@@ -261,8 +261,34 @@ async def search_suggest(q: str = "", market: str = "cn", limit: int = 8):
     return {"success": True, "data": results}
 
 
+
+# ====== K 线数据 ======
+@app.get("/api/v1/stocks/{code:str}/kline")
+async def stock_kline(code: str, count: int = 60):
+    """获取股票 K 线数据（用于前端展示 K 线图 + 成交量柱状图）"""
+    from src.services.stock_service import StockService
+    stock_service = StockService(config)
+    klines = await stock_service.get_kline_history(code, count=count)
+    if not klines:
+        raise HTTPException(404, f"无法获取 {code} 的 K 线数据")
+    
+    items = []
+    for k in klines:
+        items.append({
+            "date": k.date,
+            "open": k.open,
+            "high": k.high,
+            "low": k.low,
+            "close": k.close,
+            "volume": k.volume,
+            "amount": k.amount,
+            "change_pct": k.change_pct,
+        })
+    return {"success": True, "code": code, "count": len(items), "items": items}
+
+
 # ====== TimesFM 价格预测 ======
-@app.get("/api/v1/stocks/{code}/forecast")
+@app.get("/api/v1/stocks/{code:str}/forecast")
 async def stock_forecast(code: str, horizon: int = 14):
     """TimesFM 时间序列预测：基于历史 K 线预测未来 horizon 个交易日价格"""
     from src.utils.cache import get_cached, set_cached
@@ -296,7 +322,7 @@ async def stock_forecast(code: str, horizon: int = 14):
 
 
 # ====== 个股新闻 ======
-@app.get("/api/v1/stocks/{code}/news")
+@app.get("/api/v1/stocks/{code:str}/news")
 async def stock_news(code: str, limit: int = 10):
     """获取个股相关新闻/资讯"""
     from src.data_provider.news_fetcher import get_stock_news

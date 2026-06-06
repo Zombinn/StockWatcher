@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Card, Button, Table, Tag, Input, Space, Typography, Empty, Popconfirm, message } from 'antd';
 import { ReloadOutlined, PlusOutlined, StarOutlined, RiseOutlined, FallOutlined, DeleteOutlined } from '@ant-design/icons';
+import StockDetailDrawer from '../components/StockDetailDrawer';
 import { api } from '../api';
+import { analysisApi } from '../api/analysisApi';
 
 const { Text } = Typography;
 
@@ -12,11 +14,12 @@ export default function WatchlistPanel() {
   const [rows, setRows] = useState<any[]>([]);
   const [adding, setAdding] = useState(false);
   const [newCode, setNewCode] = useState('');
+  const [detailStock, setDetailStock] = useState<any>(null);
+  const [watchlistCodes, setWatchlistCodes_] = useState<Set<string>>(new Set());
 
   const load = async () => {
     setLoading(true);
-    try { const d = await api.getWatchlist(); setRows(d.data || []); }
-    catch (e: any) { message.error(e.message); }
+    try { const d = await api.getWatchlist(); setRows(d.data || []); setWatchlistCodes_(new Set((d.data || []).map((x: any) => x.code))); } catch (e: any) { message.error(e.message); }
     finally { setLoading(false); }
   };
 
@@ -85,10 +88,29 @@ export default function WatchlistPanel() {
       }>
       {rows.length > 0 ? (
         <Table dataSource={rows} columns={columns} rowKey="code" pagination={false} size="small" loading={loading}
-          scroll={{ x: 'max-content' }} />
+          scroll={{ x: 'max-content' }}
+          onRow={(record: any) => ({
+            style: { cursor: 'pointer' },
+            onClick: async () => {
+              setDetailStock({ code: record.code, name: record.name, price: record.price, change_pct: record.change_pct, loading: true });
+              try {
+                const res = await api.analyzeStock(record.code);
+                setDetailStock({ ...(res.data || res), loading: false });
+              } catch {
+                setDetailStock({ code: record.code, name: record.name, price: record.price, change_pct: record.change_pct, loading: false });
+              }
+            },
+          })} />
       ) : (
         <Empty description="暂无自选股，添加一只开始关注" />
       )}
+    
+      {/* 股票详情抽屉 */}
+      <StockDetailDrawer
+        stock={detailStock}
+        inWatchlist={!!(detailStock && watchlistCodes.has(detailStock.code))}
+        onClose={() => setDetailStock(null)}
+      />
     </Card>
   );
 }

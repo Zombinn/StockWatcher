@@ -32,6 +32,10 @@ export const api = {
   stockForecast: (code: string, horizon = 14) =>
     request<any>(`/stocks/${encodeURIComponent(code)}/forecast?horizon=${horizon}`),
 
+  // K 线数据
+  stockKline: (code: string, count = 60) =>
+    request<any>(`/stocks/${encodeURIComponent(code)}/kline?count=${count}`),
+
   // 选股筛选（真实行情 + 技术分析）
   screenStocks: (market: string, strategy: string, limit = 12) =>
     request<any>(`/screen?market=${market}&strategy=${encodeURIComponent(strategy)}&limit=${limit}`),

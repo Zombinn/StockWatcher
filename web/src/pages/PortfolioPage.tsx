@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { Card, Button, Row, Col, Statistic, Table, Tag, Alert, Typography, Modal, Input, InputNumber, Space, Select, Empty, message } from 'antd';
 import { ReloadOutlined, PlusOutlined, WalletOutlined, RiseOutlined, FallOutlined, ImportOutlined } from '@ant-design/icons';
 import { api } from '../api';
+import { analysisApi } from '../api/analysisApi';
+import StockDetailDrawer from '../components/StockDetailDrawer';
 import WatchlistPanel from './WatchlistPanel';
 
 const { Text } = Typography;
@@ -17,13 +19,15 @@ export default function PortfolioPage() {
   const [importOpen, setImportOpen] = useState(false);
   const [importText, setImportText] = useState('');
   const [importing, setImporting] = useState(false);
+  const [detailStock, setDetailStock] = useState<any>(null);
+  const [watchlistCodes, setWatchlistCodes] = useState<Set<string>>(new Set());
   const [filterMarket, setFilterMarket] = useState<string>('');
   const [form, setForm] = useState({ code: '', quantity: 100, cost_price: 0, market: '' });
 
   const load = async () => {
     setLoading(true); setError('');
-    try { const d = await api.getPortfolio(); setData(d.data); }
-    catch (e: any) { setError(e.message); }
+    try { const d = await api.getPortfolio(); setData(d.data); } catch (e: any) { setError(e.message); }
+      try { const w = await api.getWatchlist(); setWatchlistCodes(new Set((w.data || []).map((x: any) => x.code))); } catch {}
     finally { setLoading(false); }
   };
 
@@ -181,7 +185,20 @@ export default function PortfolioPage() {
           )}
           <Card className="glass-card" title={<span style={{ fontSize: 15, fontWeight: 600 }}>持仓明细 ({filteredPositions.length} 只)</span>}>
             {filteredPositions.length > 0 ? (
-              <Table dataSource={filteredPositions} columns={columns} rowKey="code" pagination={false} size="small" />
+              <Table dataSource={filteredPositions} columns={columns} rowKey="code" pagination={false} size="small"
+                onRow={(record: any) => ({
+                  style: { cursor: 'pointer' },
+                  onClick: async () => {
+                    setDetailStock({ code: record.code, name: record.name, price: record.current_price, change_pct: record.profit_pct, loading: true });
+                    try {
+                      const res = await api.analyzeStock(record.code);
+                      setDetailStock({ ...(res.data || res), loading: false });
+                    } catch {
+                      setDetailStock({ code: record.code, name: record.name, price: record.current_price, change_pct: record.profit_pct, loading: false });
+                    }
+                  },
+                })}
+              />
             ) : (
               <Empty description={filterMarket ? '该市场暂无持仓' : '暂无持仓，点击"添加"按钮添加'} />
             )}
@@ -224,6 +241,19 @@ export default function PortfolioPage() {
             placeholder={'600519,100,1700.5,贵州茅台\nAAPL,50,180.3,Apple\n00700.HK,200,380,腾讯控股'} />
         </div>
       </Modal>
+
+      {/* 股票详情抽屉 */}
+      <StockDetailDrawer
+        stock={detailStock}
+        inWatchlist={!!(detailStock && watchlistCodes.has(detailStock.code))}
+        onClose={() => setDetailStock(null)}
+        onAddToWatchlist={async (code: string) => {
+          try {
+            const r = await api.addWatchlist(code);
+            if (r.added) { message.success('已加入自选'); setWatchlistCodes(prev => new Set(prev).add(code)); }
+          } catch (e: any) { message.error(e.message); }
+        }}
+      />
     </div>
   );
 }

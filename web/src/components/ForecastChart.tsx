@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Card, Button, Select, Spin, Typography, Tag, Alert } from 'antd';
-import { Area } from '@ant-design/charts';
+import { Line } from '@ant-design/charts';
 import { RobotOutlined, ReloadOutlined } from '@ant-design/icons';
 import { api } from '../api';
 
@@ -58,7 +58,8 @@ export default function ForecastChart({ code, name }: Props) {
     ? ((data.forecast[data.forecast.length - 1] - data.last_price) / data.last_price * 100)
     : null;
 
-  const forecastOnly = chartData.filter((d: any) => d.type === 'forecast');
+  const yMin = chartData.length > 0 ? Math.min(...chartData.map((d: any) => d.value)) * 0.98 : undefined;
+  const yMax = chartData.length > 0 ? Math.max(...chartData.map((d: any) => d.value)) * 1.02 : undefined;
 
   const config = {
     data: chartData,
@@ -66,33 +67,18 @@ export default function ForecastChart({ code, name }: Props) {
     yField: 'value',
     smooth: true,
     animation: { appear: { animation: 'path-in', duration: 600 } },
+    point: { style: { r: 2, fill: '#f5642a' }, state: { selected: { r: 4 } } },
     style: { stroke: '#f5642a', lineWidth: 2 },
     axis: {
-      x: { label: { style: { fontSize: 11, fill: '#94a3b8' } } },
-      y: { label: { style: { fontSize: 11, fill: '#94a3b8' } } },
+      x: { label: { style: { fontSize: 11, fill: '#94a3b8' } }, title: false },
+      y: { label: { style: { fontSize: 11, fill: '#94a3b8' } }, title: false },
     },
     tooltip: {
       items: [
         { channel: 'y', name: '预测价', valueFormatter: (v: number) => v?.toFixed(2) },
       ],
     },
-    // Confidence bands using G2 v5 children marks (rangeArea)
-    children: data && forecastOnly.length > 0 ? [
-      {
-        type: 'area',
-        data: forecastOnly,
-        encode: { x: 'date', y: ['lower90', 'upper90'] },
-        style: { fill: '#f5642a', fillOpacity: 0.07 },
-        tooltip: false,
-      },
-      {
-        type: 'area',
-        data: forecastOnly,
-        encode: { x: 'date', y: ['lower80', 'upper80'] },
-        style: { fill: '#f5642a', fillOpacity: 0.10 },
-        tooltip: false,
-      },
-    ] : [],
+    scale: { y: { domain: [yMin!, yMax!] } },
   };
 
   return (
@@ -145,19 +131,11 @@ export default function ForecastChart({ code, name }: Props) {
         </div>
       ) : data ? (
         <>
-          <Area {...config} height={200} />
+          <Line {...config} height={200} />
           <div style={{ marginTop: 8, display: 'flex', gap: 16, flexWrap: 'wrap' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <div style={{ width: 12, height: 3, background: '#f5642a', borderRadius: 1 }} />
-              <Text type="secondary" style={{ fontSize: 12 }}>点预测</Text>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <div style={{ width: 12, height: 10, background: 'rgba(245,100,42,0.2)', borderRadius: 2 }} />
-              <Text type="secondary" style={{ fontSize: 12 }}>80% 置信区间</Text>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <div style={{ width: 12, height: 10, background: 'rgba(245,100,42,0.1)', borderRadius: 2 }} />
-              <Text type="secondary" style={{ fontSize: 12 }}>90% 置信区间</Text>
+              <div style={{ width: 16, height: 3, background: '#f5642a', borderRadius: 1 }} />
+              <Text type="secondary" style={{ fontSize: 12 }}>预测价格曲线</Text>
             </div>
             <Text type="secondary" style={{ fontSize: 11, marginLeft: 'auto', opacity: 0.6 }}>
               ⚠️ 仅基于历史价格形态，不构成投资建议
