@@ -47,6 +47,13 @@ class Config:
     openai_model: str = field(default_factory=lambda: os.getenv("OPENAI_MODEL", "gpt-4o-mini"))
     llm_model: str = field(default_factory=lambda: os.getenv("LLM_MODEL", "Doubao-Seed-2.0-lite"))
     llm_timeout_sec: int = field(default_factory=lambda: int(os.getenv("LLM_TIMEOUT_SEC", "60")))
+    llm_relay_enabled: bool = field(default_factory=lambda: os.getenv("LLM_RELAY_ENABLED", "false").lower() == "true")
+    llm_relay_provider: str = field(default_factory=lambda: os.getenv("LLM_RELAY_PROVIDER", "custom"))
+    llm_relay_api_key: Optional[str] = field(default_factory=lambda: _get_env("LLM_RELAY_API_KEY"))
+    llm_relay_api_keys: List[str] = field(default_factory=lambda: _split_env("LLM_RELAY_API_KEYS"))
+    llm_relay_base_url: Optional[str] = field(default_factory=lambda: _get_env("LLM_RELAY_BASE_URL"))
+    llm_relay_model: str = field(default_factory=lambda: os.getenv("LLM_RELAY_MODEL", ""))
+    llm_relay_timeout_sec: int = field(default_factory=lambda: int(os.getenv("LLM_RELAY_TIMEOUT_SEC", os.getenv("LLM_TIMEOUT_SEC", "60"))))
 
     # 数据源
     tushare_token: Optional[str] = field(default_factory=lambda: _get_env("TUSHARE_TOKEN"))

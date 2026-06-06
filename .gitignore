@@ -49,3 +49,6 @@ dist/
 
 # Claude Code local settings
 .claude/settings.local.json
+
+# Hermes local settings
+.hermes/plans/*
