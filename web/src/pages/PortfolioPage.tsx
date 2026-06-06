@@ -213,20 +213,32 @@ export default function PortfolioPage() {
 
       <Modal title="添加持仓" open={modalOpen} onOk={add} onCancel={() => setModalOpen(false)}
         okText="添加" cancelText="取消">
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 8 }}>
-          <Input placeholder="股票代码 (例: 600519 / TSLA / 00700.HK)" value={form.code}
-            onChange={e => setForm({ ...form, code: e.target.value })} />
-          <Select value={form.market} onChange={v => setForm({ ...form, market: v })}
-            options={[
-              { value: '', label: '自动检测 (推荐)' },
-              { value: 'A', label: '🇨🇳 A股' },
-              { value: 'HK', label: '🇭🇰 港股' },
-              { value: 'US', label: '🇺🇸 美股' },
-            ]} style={{ width: '100%' }} placeholder="选择市场（可选）" />
-          <InputNumber placeholder="数量" value={form.quantity} min={1}
-            onChange={v => setForm({ ...form, quantity: v || 0 })} style={{ width: '100%' }} />
-          <InputNumber placeholder="成本价" value={form.cost_price} min={0} step={0.01}
-            onChange={v => setForm({ ...form, cost_price: v || 0 })} style={{ width: '100%' }} />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 8 }}>
+          <div>
+            <div style={{ fontSize: 13, color: '#64748b', marginBottom: 4 }}>股票代码</div>
+            <Input placeholder="例: 600519 / TSLA / 00700.HK" value={form.code}
+              onChange={e => setForm({ ...form, code: e.target.value })} />
+          </div>
+          <div>
+            <div style={{ fontSize: 13, color: '#64748b', marginBottom: 4 }}>市场（可选）</div>
+            <Select value={form.market} onChange={v => setForm({ ...form, market: v })}
+              options={[
+                { value: '', label: '自动检测 (推荐)' },
+                { value: 'A', label: '🇨🇳 A股' },
+                { value: 'HK', label: '🇭🇰 港股' },
+                { value: 'US', label: '🇺🇸 美股' },
+              ]} style={{ width: '100%' }} placeholder="选择市场" />
+          </div>
+          <div>
+            <div style={{ fontSize: 13, color: '#64748b', marginBottom: 4 }}>数量</div>
+            <InputNumber placeholder="输入持仓数量" value={form.quantity} min={1}
+              onChange={v => setForm({ ...form, quantity: v || 0 })} style={{ width: '100%' }} />
+          </div>
+          <div>
+            <div style={{ fontSize: 13, color: '#64748b', marginBottom: 4 }}>成本价</div>
+            <InputNumber placeholder="输入每股成本价" value={form.cost_price} min={0} step={0.01}
+              onChange={v => setForm({ ...form, cost_price: v || 0 })} style={{ width: '100%' }} />
+          </div>
         </div>
       </Modal>
 

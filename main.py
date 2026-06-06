@@ -108,9 +108,31 @@ async def run_analysis(config, dry_run: bool = False, no_notify: bool = False) -
         return
 
     from src.formatters import SIGNAL_LEGEND
+
+    # 为每只股票获取 TimesFM 预测
+    forecasts = {}
+    try:
+        from src.llm.timesfm_forecaster import forecast as tfm_forecast
+        from src.services.stock_service import StockService
+        stock_service = StockService(config)
+        for code in results:
+            klines = await stock_service.get_kline_history(code, count=60)
+            if klines:
+                fc = await tfm_forecast(klines, horizon=5)
+                if fc:
+                    forecasts[code] = fc
+    except Exception:
+        pass
+
     summary_lines = [f"📊 StockWatcher 分析简报\n{SIGNAL_LEGEND}\n"]
     for code, result in results.items():
-        summary_lines.append(format_short_notification(result))
+        line = format_short_notification(result)
+        fc = forecasts.get(code)
+        if fc and fc.forecast:
+            dates_fmt = "/".join(d[-5:] for d in fc.dates[:5])
+            vals_fmt = " ".join(f"{v:.1f}" for v in fc.forecast[:5])
+            line += f"\n📈 TimesFM预测: {dates_fmt} → {vals_fmt}"
+        summary_lines.append(line)
         summary_lines.append("")
     await send_to_all("\n".join(summary_lines), title="StockWatcher 分析报告")
 
