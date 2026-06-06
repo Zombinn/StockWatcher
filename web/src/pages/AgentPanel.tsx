@@ -21,7 +21,7 @@ export default function AgentPanel() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [modelInfo, setModelInfo] = useState<{ name: string; base: string } | null>(null);
+  const [modelInfo, setModelInfo] = useState<{ name: string; base: string; mode: string; provider?: string } | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -30,13 +30,20 @@ export default function AgentPanel() {
     }
   }, [messages]);
 
-  // 页面加载时读取当前 LLM 配置，告知用户问股使用的模型
+  // 页面加载时读取当前 LLM 配置，告知用户问股实际使用的模型来源
   useEffect(() => {
     api.getConfigValues().then(d => {
       const v = d.values || {};
-      const model = v.OPENAI_MODEL || v.LLM_MODEL || '';
-      const base  = v.OPENAI_BASE_URL || '';
-      if (model) setModelInfo({ name: model, base });
+      const relayEnabled = v.LLM_RELAY_ENABLED === 'true';
+      const model = relayEnabled
+        ? (v.LLM_RELAY_MODEL || v.LLM_MODEL || '')
+        : (v.OPENAI_MODEL || v.LLM_MODEL || '');
+      const base = relayEnabled
+        ? (v.LLM_RELAY_BASE_URL || '')
+        : (v.OPENAI_BASE_URL || '');
+      const provider = relayEnabled ? (v.LLM_RELAY_PROVIDER || 'custom') : '';
+      const mode = relayEnabled ? '中转站' : '非中转站';
+      if (model) setModelInfo({ name: model, base, mode, provider });
     }).catch(() => {});
   }, []);
 
@@ -88,6 +95,8 @@ export default function AgentPanel() {
                 <Tooltip title={
                   <div style={{ fontSize: 12 }}>
                     <div>分析方式：LLM 多轮对话</div>
+                    <div>模式：{modelInfo.mode}</div>
+                    {modelInfo.provider && <div>类型：{modelInfo.provider}</div>}
                     <div>技术数据：MA / MACD / RSI / KDJ / BOLL</div>
                     {modelInfo.base && <div>接口：{modelInfo.base}</div>}
                   </div>

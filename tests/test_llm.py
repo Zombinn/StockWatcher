@@ -1,6 +1,6 @@
 """测试 LLM 模块"""
 from src.llm.interpreter import LLMAnalysis, _LLM_ANALYSIS_SYSTEM_PROMPT, _NEWS_ANALYSIS_PROMPT
-from src.llm.client import OpenAICompatibleClient
+from src.llm.client import OpenAICompatibleClient, create_llm_client
 
 
 def test_llm_analysis_dataclass():
@@ -31,3 +31,46 @@ def test_parse_llm_response():
     assert result.trend_analysis == "趋势向上"
     assert result.score_adjustment == 10.0
     assert result.key_levels["support"] == 150.0
+
+
+def test_create_llm_client_prefers_enabled_relay(monkeypatch):
+    """开启中转站后应优先使用中转站配置"""
+    monkeypatch.setenv("LLM_RELAY_ENABLED", "true")
+    monkeypatch.setenv("LLM_RELAY_PROVIDER", "custom")
+    monkeypatch.setenv("LLM_RELAY_API_KEY", "relay-key")
+    monkeypatch.setenv("LLM_RELAY_BASE_URL", "http://relay.example/v1")
+    monkeypatch.setenv("LLM_RELAY_MODEL", "relay-model")
+    monkeypatch.setenv("OPENAI_API_KEY", "direct-key")
+    monkeypatch.setenv("OPENAI_BASE_URL", "https://direct.example/v1")
+    monkeypatch.setenv("OPENAI_MODEL", "direct-model")
+
+    from src.config import reload_config
+    reload_config()
+
+    client = create_llm_client()
+
+    assert isinstance(client, OpenAICompatibleClient)
+    assert client.api_key == "relay-key"
+    assert client.base_url == "http://relay.example/v1"
+    assert client.model == "relay-model"
+
+
+def test_create_llm_client_uses_direct_when_relay_disabled(monkeypatch):
+    """未开启中转站时应使用非中转站 OpenAI 兼容配置"""
+    monkeypatch.setenv("LLM_RELAY_ENABLED", "false")
+    monkeypatch.setenv("LLM_RELAY_API_KEY", "relay-key")
+    monkeypatch.setenv("LLM_RELAY_BASE_URL", "http://relay.example/v1")
+    monkeypatch.setenv("LLM_RELAY_MODEL", "relay-model")
+    monkeypatch.setenv("OPENAI_API_KEY", "direct-key")
+    monkeypatch.setenv("OPENAI_BASE_URL", "https://direct.example/v1")
+    monkeypatch.setenv("OPENAI_MODEL", "direct-model")
+
+    from src.config import reload_config
+    reload_config()
+
+    client = create_llm_client()
+
+    assert isinstance(client, OpenAICompatibleClient)
+    assert client.api_key == "direct-key"
+    assert client.base_url == "https://direct.example/v1"
+    assert client.model == "direct-model"

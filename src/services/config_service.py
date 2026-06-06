@@ -28,6 +28,7 @@ class ConfigField:
     placeholder: str = ""
     options: List[str] = field(default_factory=list)  # for select type
     section: str = "general"
+    subsection: str = ""
     required: bool = False
     secret: bool = False  # 敏感字段，前端不回显完整值
 
@@ -44,19 +45,35 @@ ALL_FIELDS: List[ConfigField] = [
     ConfigField("RUN_IMMEDIATELY", "启动时立即运行", "boolean", "true",
                 "定时任务模式下，启动时先执行一次", section="stocks"),
 
-    # ---- LLM ----
+    # ---- LLM / AI：中转站 ----
+    ConfigField("LLM_RELAY_ENABLED", "启用中转站", "boolean", "false",
+                "开启后优先使用中转站配置调用 LLM", section="llm", subsection="relay"),
+    ConfigField("LLM_RELAY_PROVIDER", "中转站类型", "select", "custom",
+                "选择内置中转站或自定义 OpenAI 兼容网关", section="llm", subsection="relay", options=["custom", "anspire"]),
+    ConfigField("LLM_RELAY_API_KEY", "中转站 API Key", "password", "",
+                "当前启用的中转站 API Key", section="llm", subsection="relay"),
+    ConfigField("LLM_RELAY_API_KEYS", "中转站备用 Keys", "password", "",
+                "可选，多个 Key 用逗号分隔；未填写单 Key 时使用第一个", section="llm", subsection="relay"),
+    ConfigField("LLM_RELAY_BASE_URL", "中转站 Base URL", "string", "",
+                "OpenAI 兼容网关地址，例如 http://host:port/v1；不要包含 /chat/completions", section="llm", subsection="relay"),
+    ConfigField("LLM_RELAY_MODEL", "中转站模型", "string", "",
+                "中转站模型名称，例如 gpt-5.5", section="llm", subsection="relay"),
+    ConfigField("LLM_RELAY_TIMEOUT_SEC", "中转站超时(秒)", "number", "60",
+                "中转站单次请求超时时间", section="llm", subsection="relay"),
+    ConfigField("ANSPIRE_API_KEYS", "Anspire Legacy Keys", "password", "",
+                "旧版 Anspire 网关 API Key，逗号分隔支持多个；建议迁移到中转站配置", section="llm", subsection="relay"),
+
+    # ---- LLM / AI：非中转站 ----
     ConfigField("OPENAI_API_KEY", "OpenAI API Key", "password", "",
-                "OpenAI 兼容 API Key（支持 DeepSeek/通义千问等）", section="llm"),
+                "OpenAI 兼容 API Key（支持 DeepSeek/通义千问等）", section="llm", subsection="direct"),
     ConfigField("OPENAI_BASE_URL", "OpenAI Base URL", "string", "",
-                "例如 https://api.openai.com/v1", section="llm", placeholder="https://api.openai.com/v1"),
+                "例如 https://api.openai.com/v1", section="llm", subsection="direct", placeholder="https://api.openai.com/v1"),
     ConfigField("OPENAI_MODEL", "OpenAI 模型", "string", "gpt-4o-mini",
-                "使用的模型名称", section="llm"),
-    ConfigField("ANSPIRE_API_KEYS", "Anspire API Keys", "password", "",
-                "Anspire 网关 API Key，逗号分隔支持多个", section="llm"),
+                "使用的模型名称", section="llm", subsection="direct"),
     ConfigField("LLM_MODEL", "LLM 模型", "string", "Doubao-Seed-2.0-lite",
-                "默认 LLM 模型名称", section="llm"),
+                "默认 LLM 模型名称", section="llm", subsection="direct"),
     ConfigField("LLM_TIMEOUT_SEC", "LLM 超时(秒)", "number", "60",
-                "单次 LLM 请求超时时间", section="llm"),
+                "单次 LLM 请求超时时间", section="llm", subsection="direct"),
 
     # ---- 数据源 ----
     ConfigField("TUSHARE_TOKEN", "Tushare Token", "password", "",
@@ -127,6 +144,11 @@ class ConfigManager:
                     "log": "📝 日志",
                 }
                 sections[sec] = {"key": sec, "label": labels.get(sec, sec), "fields": []}
+                if sec == "llm":
+                    sections[sec]["subsections"] = [
+                        {"key": "relay", "label": "中转站"},
+                        {"key": "direct", "label": "非中转站"},
+                    ]
             sections[sec]["fields"].append(field.__dict__)
         return list(sections.values())
 

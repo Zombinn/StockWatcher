@@ -40,11 +40,12 @@ class LLMClient(ABC):
 class OpenAICompatibleClient(LLMClient):
     """OpenAI 兼容 API 客户端"""
 
-    def __init__(self, api_key: str, base_url: str, model: str):
+    def __init__(self, api_key: str, base_url: str, model: str, timeout: int = 120):
         self.api_key = api_key
         self.base_url = base_url.rstrip("/")
         self.model = model
-        self._http = httpx.AsyncClient(timeout=120)
+        self.timeout = timeout
+        self._http = httpx.AsyncClient(timeout=timeout)
 
     async def chat(
         self,
@@ -116,19 +117,36 @@ def create_llm_client() -> Optional[LLMClient]:
     """根据配置创建 LLM 客户端"""
     config = get_config()
 
+    # 中转站 / 网关优先（开启后覆盖非中转站配置）
+    if getattr(config, "llm_relay_enabled", False):
+        relay_keys = []
+        if config.llm_relay_api_key:
+            relay_keys.append(config.llm_relay_api_key)
+        relay_keys.extend(config.llm_relay_api_keys)
+        relay_keys.extend(config.ansipre_api_keys)
+        key = relay_keys[0] if relay_keys else None
+        base_url = config.llm_relay_base_url
+        if not base_url and config.llm_relay_provider == "anspire":
+            base_url = "https://open-gateway.anspire.cn/v6"
+        model = config.llm_relay_model or config.llm_model
+        if key and base_url and model:
+            logger.info("创建 LLM 中转站客户端: provider=%s, base=%s, model=%s", config.llm_relay_provider, base_url, model)
+            return OpenAICompatibleClient(key, base_url, model, timeout=config.llm_relay_timeout_sec)
+        logger.warning("已启用 LLM 中转站，但 key/base_url/model 配置不完整，尝试非中转站配置")
+
     # OpenAI-compatible 优先
     if config.openai_api_key and config.openai_base_url:
         model = config.openai_model or config.llm_model
         logger.info("创建 OpenAI 兼容客户端: %s, model=%s", config.openai_base_url, model)
-        return OpenAICompatibleClient(config.openai_api_key, config.openai_base_url, model)
+        return OpenAICompatibleClient(config.openai_api_key, config.openai_base_url, model, timeout=config.llm_timeout_sec)
 
-    # Anspire
+    # Anspire legacy
     if config.ansipre_api_keys:
         key = config.ansipre_api_keys[0]
         base_url = "https://open-gateway.anspire.cn/v6"
         model = config.llm_model
         logger.info("创建 Anspire 客户端, model=%s", model)
-        return OpenAICompatibleClient(key, base_url, model)
+        return OpenAICompatibleClient(key, base_url, model, timeout=config.llm_timeout_sec)
 
     logger.warning("未配置 LLM API Key，无法创建 LLM 客户端")
     return None

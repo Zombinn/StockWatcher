@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Card, Button, Input, Switch, Select, Space, Tag, Typography, message } from 'antd';
+import { Card, Button, Input, Switch, Select, Space, Tag, Typography, message, Tabs } from 'antd';
 import { SaveOutlined, ReloadOutlined, SettingOutlined, RightOutlined, ThunderboltOutlined } from '@ant-design/icons';
 import { api } from '../api';
 
@@ -68,6 +68,98 @@ export default function ConfigPage() {
     setFormDirty(prev => ({ ...prev, [key]: val }));
   };
 
+  const currentValue = (f: any) => formDirty[f.key] !== undefined ? formDirty[f.key] : (values[f.key] ?? f.default ?? '');
+
+  const renderField = (f: any) => {
+    const val = currentValue(f);
+
+    // 自选股列表：只读展示（代码+名称，颜色区分市场），管理跳转持仓页
+    if (f.key === 'STOCK_LIST') {
+      return (
+        <div key={f.key} style={{ marginBottom: 20 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+            <Space size={8} wrap>
+              <span style={{ color: '#64748b', fontSize: 13, fontWeight: 500 }}>{f.label}</span>
+              <Space size={4}>
+                {Object.values(MARKET_META).map(m => (
+                  <Tag key={m.label} color={m.color} style={{ borderRadius: 4, border: 'none', margin: 0, fontSize: 11, lineHeight: '18px' }}>{m.label}</Tag>
+                ))}
+              </Space>
+            </Space>
+            <a onClick={goToPortfolio} style={{ color: '#f5642a', fontSize: 13, fontWeight: 500 }}>
+              去配置 <RightOutlined style={{ fontSize: 10 }} />
+            </a>
+          </div>
+          {watchlist.length > 0 ? (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              {watchlist.map(w => {
+                const meta = MARKET_META[w.market] || { color: 'default' };
+                return (
+                  <Tag key={w.code} color={meta.color}
+                    style={{ borderRadius: 6, padding: '3px 10px', margin: 0, fontSize: 13, cursor: 'default' }}>
+                    <span style={{ fontWeight: 600 }}>{w.code}</span>
+                    {w.name && w.name !== w.code && <span style={{ marginLeft: 6, opacity: 0.85 }}>{w.name}</span>}
+                  </Tag>
+                );
+              })}
+            </div>
+          ) : (
+            <Text type="secondary" style={{ fontSize: 13 }}>暂无自选股，点击「去配置」前往持仓页添加</Text>
+          )}
+          <div style={{ color: '#94a3b8', fontSize: 12, marginTop: 6 }}>自选股已迁至持仓页统一管理（不再于此编辑）</div>
+        </div>
+      );
+    }
+
+    return (
+      <div key={f.key} style={{ marginBottom: 20 }}>
+        <label style={{ display: 'block', marginBottom: 4, color: '#64748b', fontSize: 13, fontWeight: 500 }}>{f.label}</label>
+        {f.type === 'boolean' ? (
+          <Switch
+            checkedChildren="开启" unCheckedChildren="关闭"
+            checked={val === 'true'}
+            onChange={(v) => setVal(f.key, v ? 'true' : 'false')}
+          />
+        ) : f.type === 'select' ? (
+          <Select
+            value={val}
+            onChange={(v) => setVal(f.key, v)}
+            options={(f.options || []).map((o: string) => ({ value: o, label: o }))}
+            style={{ width: 240 }}
+          />
+        ) : f.type === 'multiline' || (typeof val === 'string' && val.length > 60) ? (
+          <Input.TextArea value={val} onChange={e => setVal(f.key, e.target.value)} rows={3} />
+        ) : (
+          <Input
+            value={val}
+            onChange={e => setVal(f.key, e.target.value)}
+            type={f.type === 'password' ? 'password' : 'text'}
+            placeholder={f.placeholder || f.description}
+          />
+        )}
+        {f.description && <div style={{ color: '#94a3b8', fontSize: 12, marginTop: 2 }}>{f.description}</div>}
+      </div>
+    );
+  };
+
+  const renderSectionFields = (sec: any) => {
+    if (sec.key === 'llm' && Array.isArray(sec.subsections) && sec.subsections.length > 0) {
+      const relayEnabled = currentValue({ key: 'LLM_RELAY_ENABLED', default: 'false' }) === 'true';
+      const activeKey = relayEnabled ? 'relay' : 'direct';
+      return (
+        <Tabs
+          defaultActiveKey={activeKey}
+          items={sec.subsections.map((sub: any) => ({
+            key: sub.key,
+            label: sub.label,
+            children: <div style={{ paddingTop: 8 }}>{sec.fields.filter((f: any) => f.subsection === sub.key).map(renderField)}</div>,
+          }))}
+        />
+      );
+    }
+    return sec.fields.map(renderField);
+  };
+
   useEffect(() => { load(); }, []);
 
   if (loading) return (
@@ -106,77 +198,7 @@ export default function ConfigPage() {
 
       {sections.map(sec => (
         <Card key={sec.key} className="glass-card" title={<span style={{ fontSize: 15, fontWeight: 600 }}>{sec.label}</span>} style={{ marginBottom: 16 }}>
-          {sec.fields.map((f: any) => {
-            const val = formDirty[f.key] !== undefined ? formDirty[f.key] : (values[f.key] ?? f.default ?? '');
-
-            // 自选股列表：只读展示（代码+名称，颜色区分市场），管理跳转持仓页
-            if (f.key === 'STOCK_LIST') {
-              return (
-                <div key={f.key} style={{ marginBottom: 20 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                    <Space size={8} wrap>
-                      <span style={{ color: '#64748b', fontSize: 13, fontWeight: 500 }}>{f.label}</span>
-                      <Space size={4}>
-                        {Object.values(MARKET_META).map(m => (
-                          <Tag key={m.label} color={m.color} style={{ borderRadius: 4, border: 'none', margin: 0, fontSize: 11, lineHeight: '18px' }}>{m.label}</Tag>
-                        ))}
-                      </Space>
-                    </Space>
-                    <a onClick={goToPortfolio} style={{ color: '#f5642a', fontSize: 13, fontWeight: 500 }}>
-                      去配置 <RightOutlined style={{ fontSize: 10 }} />
-                    </a>
-                  </div>
-                  {watchlist.length > 0 ? (
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                      {watchlist.map(w => {
-                        const meta = MARKET_META[w.market] || { color: 'default' };
-                        return (
-                          <Tag key={w.code} color={meta.color}
-                            style={{ borderRadius: 6, padding: '3px 10px', margin: 0, fontSize: 13, cursor: 'default' }}>
-                            <span style={{ fontWeight: 600 }}>{w.code}</span>
-                            {w.name && w.name !== w.code && <span style={{ marginLeft: 6, opacity: 0.85 }}>{w.name}</span>}
-                          </Tag>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <Text type="secondary" style={{ fontSize: 13 }}>暂无自选股，点击「去配置」前往持仓页添加</Text>
-                  )}
-                  <div style={{ color: '#94a3b8', fontSize: 12, marginTop: 6 }}>自选股已迁至持仓页统一管理（不再于此编辑）</div>
-                </div>
-              );
-            }
-
-            return (
-              <div key={f.key} style={{ marginBottom: 20 }}>
-                <label style={{ display: 'block', marginBottom: 4, color: '#64748b', fontSize: 13, fontWeight: 500 }}>{f.label}</label>
-                {f.type === 'boolean' ? (
-                  <Switch
-                    checkedChildren="开启" unCheckedChildren="关闭"
-                    checked={val === 'true'}
-                    onChange={(v) => setVal(f.key, v ? 'true' : 'false')}
-                  />
-                ) : f.type === 'select' ? (
-                  <Select
-                    value={val}
-                    onChange={(v) => setVal(f.key, v)}
-                    options={(f.options || []).map((o: string) => ({ value: o, label: o }))}
-                    style={{ width: 200 }}
-                  />
-                ) : f.type === 'multiline' || (typeof val === 'string' && val.length > 60) ? (
-                  <Input.TextArea value={val} onChange={e => setVal(f.key, e.target.value)} rows={3} />
-                ) : (
-                  <Input
-                    value={val}
-                    onChange={e => setVal(f.key, e.target.value)}
-                    type={f.type === 'password' ? 'password' : 'text'}
-                    placeholder={f.description}
-                  />
-                )}
-                {f.description && <div style={{ color: '#94a3b8', fontSize: 12, marginTop: 2 }}>{f.description}</div>}
-              </div>
-            );
-          })}
+          {renderSectionFields(sec)}
         </Card>
       ))}
     </div>
