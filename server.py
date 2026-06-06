@@ -35,6 +35,17 @@ def get_agent():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("StockWatcher API 启动")
+    # TimesFM 在后台线程预加载，不阻塞服务启动
+    import asyncio as _aio
+    async def _warmup_timesfm():
+        try:
+            from src.utils.blocking import run_blocking
+            from src.llm.timesfm_forecaster import _load_model
+            await run_blocking(_load_model)
+            logger.info("TimesFM 模型预加载完成")
+        except Exception as e:
+            logger.warning("TimesFM 预加载失败（不影响其他功能）: %s", e)
+    _aio.create_task(_warmup_timesfm())
     yield
     logger.info("StockWatcher API 关闭")
 

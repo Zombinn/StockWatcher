@@ -14,7 +14,7 @@ interface Props {
 export default function ForecastChart({ code, name }: Props) {
   const [horizon, setHorizon] = useState(14);
   const [data, setData] = useState<any>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);  // 默认 true，避免白屏
   const [error, setError] = useState('');
 
   const load = async (h = horizon) => {
@@ -24,7 +24,7 @@ export default function ForecastChart({ code, name }: Props) {
       const d = await api.stockForecast(code, h);
       setData(d);
     } catch (e: any) {
-      setError(e.message || '预测失败');
+      setError(e.message || '预测失败（模型加载中，稍后重试）');
     } finally {
       setLoading(false);
     }
@@ -131,9 +131,12 @@ export default function ForecastChart({ code, name }: Props) {
 
       {loading ? (
         <div style={{ textAlign: 'center', padding: '40px 0' }}>
-          <Spin size="small" />
-          <Text type="secondary" style={{ display: 'block', marginTop: 8, fontSize: 13 }}>
-            {data ? '更新预测中…' : 'TimesFM 推理中（首次需加载模型 ~15s）…'}
+          <Spin size="default" />
+          <Text type="secondary" style={{ display: 'block', marginTop: 12, fontSize: 13 }}>
+            {data ? '更新预测中…' : 'TimesFM 推理中…'}
+          </Text>
+          <Text type="secondary" style={{ display: 'block', marginTop: 4, fontSize: 12, opacity: 0.7 }}>
+            {data ? '' : '服务启动时已预加载模型，首次约需 3-5 秒'}
           </Text>
         </div>
       ) : data ? (
