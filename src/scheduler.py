@@ -35,19 +35,18 @@ class Scheduler:
             "run_immediately": run_immediately,
             "name": name or f"task_{len(self._jobs)}",
         })
+        if run_immediately:
+            logger.info("立即执行 [%s]...", name or "task")
+            try:
+                task()
+            except Exception as e:
+                logger.error("立即执行 [%s] 失败: %s", name or "task", e)
 
     def start(self) -> None:
         """启动调度器"""
         for job in self._jobs:
             schedule.every().day.at(job["time"]).do(job["task"])
             logger.info("定时任务 [%s] 已设置: 每天 %s 执行", job["name"], job["time"])
-
-            if job["run_immediately"]:
-                logger.info("立即执行 [%s]...", job["name"])
-                try:
-                    job["task"]()
-                except Exception as e:
-                    logger.error("立即执行 [%s] 失败: %s", job["name"], e)
 
         self._running = True
         logger.info("调度器已启动，等待定时任务...")

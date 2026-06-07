@@ -58,12 +58,25 @@ def _format_single_stock(result: AnalysisResult) -> List[str]:
 
 
 _SIGNAL_EMOJI = {"买入": "🟢", "卖出": "🔴", "持有": "🟡", "观望": "⚪"}
+# 模糊匹配，支持"强烈买入""建议买入"等变体
+_SIGNAL_EMOJI_FUZZY = {
+    "买入": "🟢",
+    "卖出": "🔴",
+    "持有": "🟡",
+    "观望": "⚪",
+}
 SIGNAL_LEGEND = "🟢买入 🟡持有 ⚪观望 🔴卖出"
 
 
 def format_short_notification(result: AnalysisResult) -> str:
     """格式化简短推送通知"""
-    emoji = _SIGNAL_EMOJI.get(result.signal, "⚪")
+        # 模糊匹配建议文字（优先），回退到信号
+    match_text = result.suggestion or result.signal or ""
+    emoji = "⚪"
+    for keyword, e in _SIGNAL_EMOJI_FUZZY.items():
+        if keyword in match_text:
+            emoji = e
+            break
     # 名称和代码都显示，避免美股等只显示一个
     name_part = result.name if result.name else result.code
     code_part = f"({result.code})" if result.code and result.code != result.name else ""

@@ -35,17 +35,15 @@ def get_agent():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("StockWatcher API 启动")
-    # TimesFM 在后台线程预加载，不阻塞服务启动
-    import asyncio as _aio
-    async def _warmup_timesfm():
-        try:
-            from src.utils.blocking import run_blocking
-            from src.llm.timesfm_forecaster import _load_model
-            await run_blocking(_load_model)
-            logger.info("TimesFM 模型预加载完成")
-        except Exception as e:
-            logger.warning("TimesFM 预加载失败（不影响其他功能）: %s", e)
-    _aio.create_task(_warmup_timesfm())
+    # 预加载 TimesFM 模型（阻塞，等模型就绪后再接受请求）
+    try:
+        from src.utils.blocking import run_blocking
+        from src.llm.timesfm_forecaster import _load_model
+        logger.info("正在预加载 TimesFM 模型（首次需下载 ~880MB，请耐心等待）...")
+        await run_blocking(_load_model)
+        logger.info("TimesFM 模型预加载完成")
+    except Exception as e:
+        logger.warning("TimesFM 预加载失败: %s", e)
     yield
     logger.info("StockWatcher API 关闭")
 
@@ -196,15 +194,47 @@ async def trigger_analysis():
         from src.services.analysis_service import AnalysisService
         from src.formatters import format_analysis_report, format_short_notification
         from src.notification_sender.factory import send_to_all
-        service = AnalysisService(config)
+        from src.config import get_config
+        cfg = get_config()
+        service = AnalysisService(cfg)
         results = await service.full_analysis()
         if not results:
             logger.warning("分析结果为空")
             return
         report = format_analysis_report(results)
-        summary_lines = ["📊 StockWatcher 分析简报\n"]
+        
+        # TimesFM 预测
+        forecasts = {}
+        try:
+            from src.llm.timesfm_forecaster import forecast as tfm_forecast
+            from src.services.stock_service import StockService
+            logger.info("开始获取 TimesFM 预测...")
+            stock_service = StockService(cfg)
+            for code in results:
+                try:
+                    klines = await stock_service.get_kline_history(code, count=60)
+                    if klines:
+                        fc = await tfm_forecast(klines, horizon=5)
+                        if fc and fc.forecast:
+                            forecasts[code] = fc
+                            logger.info("TimesFM 预测成功: %s", code)
+                except Exception as e:
+                    logger.warning("TimesFM 预测失败 %s: %s", code, e)
+            if forecasts:
+                logger.info("TimesFM 预测完成: %d 只", len(forecasts))
+        except Exception as e:
+            logger.warning("TimesFM 模块异常: %s", e)
+        
+        from src.formatters import SIGNAL_LEGEND
+        summary_lines = [f"📊 StockWatcher 分析简报\n{SIGNAL_LEGEND}\n"]
         for code, result in results.items():
-            summary_lines.append(format_short_notification(result))
+            line = format_short_notification(result)
+            fc = forecasts.get(code)
+            if fc and fc.forecast:
+                dates_fmt = "/".join(d[-5:] for d in fc.dates[:5])
+                vals_fmt = " ".join(f"{v:.1f}" for v in fc.forecast[:5])
+                line += f"\n📈 TimesFM预测: {dates_fmt} → {vals_fmt}"
+            summary_lines.append(line)
             summary_lines.append("")
         await send_to_all("\n".join(summary_lines), title="StockWatcher 手动触发分析")
         logger.info("手动分析完成，已推送通知")

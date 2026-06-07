@@ -20,6 +20,7 @@ class TelegramSender(BaseSender):
     async def send_text(self, message: str, title: str = "") -> bool:
         try:
             text = f"*{title}*\n\n{message}" if title else message
+            logger.info("Telegram 发送内容:\n%s", text)
             async with httpx.AsyncClient() as client:
                 resp = await client.post(
                     f"{self.api_url}/sendMessage",

@@ -115,14 +115,30 @@ async def run_analysis(config, dry_run: bool = False, no_notify: bool = False) -
         from src.llm.timesfm_forecaster import forecast as tfm_forecast
         from src.services.stock_service import StockService
         stock_service = StockService(config)
+        logger.info("开始获取 TimesFM 预测（首次将加载模型 ~880MB，需等待）...")
         for code in results:
-            klines = await stock_service.get_kline_history(code, count=60)
-            if klines:
-                fc = await tfm_forecast(klines, horizon=5)
-                if fc:
-                    forecasts[code] = fc
-    except Exception:
-        pass
+            try:
+                logger.info("TimesFM 获取 K 线: %s", code)
+                klines = await stock_service.get_kline_history(code, count=60)
+                if klines:
+                    logger.info("TimesFM K 线获取成功: %s, %d 条", code, len(klines))
+                    fc = await tfm_forecast(klines, horizon=5)
+                    if fc and fc.forecast:
+                        forecasts[code] = fc
+                        logger.info("TimesFM 预测成功: %s → 前5天: %s", code,
+                                    " ".join(f"{v:.1f}" for v in fc.forecast[:5]))
+                    else:
+                        logger.info("TimesFM 预测无结果: %s", code)
+                else:
+                    logger.info("TimesFM K 线为空: %s", code)
+            except Exception as e:
+                logger.warning("TimesFM 预测失败 %s: %s", code, e)
+        if forecasts:
+            logger.info("TimesFM 预测完成: %d 只股票", len(forecasts))
+        else:
+            logger.info("TimesFM 无预测结果")
+    except Exception as e:
+        logger.warning("TimesFM 预测模块异常: %s", e)
 
     summary_lines = [f"📊 StockWatcher 分析简报\n{SIGNAL_LEGEND}\n"]
     for code, result in results.items():

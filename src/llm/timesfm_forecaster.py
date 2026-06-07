@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from dataclasses import dataclass
 from typing import List, Optional
 
@@ -73,15 +74,28 @@ def _load_model():
 
 
 def _predict_sync(closes: np.ndarray, horizon: int) -> tuple[np.ndarray, np.ndarray]:
-    """同步推理（在工作线程中调用）"""
+    """同步推理（在工作线程中调用，等待模型加载完成）"""
+    global _model, _model_loading
+
+    # 如果模型在加载中，等待它加载完成（最长 300 秒）
+    wait_start = time.time()
+    while _model_loading:
+        if time.time() - wait_start > 300:
+            logger.warning("TimesFM 模型加载超时（300s），跳过预测")
+            raise TimeoutError("TimesFM 模型加载超时")
+        time.sleep(1)
+
+    # 如果模型未加载或加载失败，再试一次
+    if _model is None:
+        _load_model()
+
     model = _load_model()
     valid = closes[~np.isnan(closes)]
     if len(valid) > _CONTEXT_LEN:
         valid = valid[-_CONTEXT_LEN:]
     point, quantiles = model.forecast(horizon=horizon, inputs=[valid])
-    # quantiles: (1, horizon, n_quantiles)
     q = np.array(quantiles)
-    return point[0], q[0] if q.ndim == 3 else q  # (horizon,), (horizon, n_quantiles)
+    return point[0], q[0] if q.ndim == 3 else q
 
 
 def _future_dates(last_date_str: str, horizon: int) -> List[str]:
