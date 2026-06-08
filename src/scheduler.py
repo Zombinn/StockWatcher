@@ -14,6 +14,15 @@ import schedule
 logger = logging.getLogger(__name__)
 
 
+def _normalize_time(t: str) -> str:
+    """标准化时间格式为 HH:MM"""
+    t = t.strip()
+    if ":" in t:
+        return t
+    if len(t) == 4 and t.isdigit():
+        return f"{t[:2]}:{t[2:]}"
+    return t
+
 class Scheduler:
     """定时任务调度器"""
 
@@ -57,7 +66,7 @@ class Scheduler:
     def start(self) -> None:
         """启动调度器"""
         for job in self._jobs:
-            schedule.every().day.at(job["time"]).do(self._wrap_task(job))
+            schedule.every().day.at(_normalize_time(job["time"])).do(self._wrap_task(job))
             logger.info("定时任务 [%s] 已设置: 每天 %s 执行", job["name"], job["time"])
 
         self._running = True

@@ -77,4 +77,13 @@ export const api = {
   updateConfig: (updates: Record<string, string>) =>
     request<any>('/config/update', { method: 'POST', body: JSON.stringify({ updates }) }),
   resetConfig: () => request<any>('/config/reset', { method: 'POST', body: '{}' }),
+  // 报告
+  listReports: (page = 1, pageSize = 10) => request<any>(`/reports?page=${page}&page_size=${pageSize}`),
+  getReport: (rid: string) => request<any>(`/reports/${rid}`),
+  deleteReport: (rid: string) => request<any>(`/reports/${rid}`, { method: 'DELETE' }),
+  deleteReportsBatch: (ids: string[]) => request<any>('/reports/delete', { method: 'POST', body: JSON.stringify({ ids }) }),
+  // 形态识别
+  stockPatterns: (code: string) => request<any>(`/stocks/${encodeURIComponent(code)}/patterns`),
+  // 财报日历
+  stockEarnings: (code: string) => request<any>(`/stocks/${encodeURIComponent(code)}/earnings`),
 };

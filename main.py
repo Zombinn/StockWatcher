@@ -28,7 +28,6 @@ import logging
 import os
 import sys
 from datetime import datetime
-from pathlib import Path
 
 from src.config import setup_env, get_config, reload_config
 
@@ -96,12 +95,20 @@ async def run_analysis(config, dry_run: bool = False, no_notify: bool = False) -
             if llm.risk_warning:
                 report += f"- ⚠️ **风险提示**: {llm.risk_warning}\n"
 
-    # 保存报告
-    report_dir = Path(config.log_dir) / "reports"
-    report_dir.mkdir(parents=True, exist_ok=True)
-    report_file = report_dir / f"report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.md"
-    report_file.write_text(report, encoding="utf-8")
-    logger.info("分析报告已保存: %s", report_file)
+    # 保存报告（统一到 ReportService）
+    from src.services.report_service import get_report_service
+    try:
+        details = {"report": report}
+        if llm_interpretations:
+            details["llm"] = {c: l.__dict__ for c, l in llm_interpretations.items()}
+        get_report_service().save(
+            title=f"分析报告 {datetime.now().strftime('%m-%d %H:%M')}",
+            summary=report[:200],
+            stock_count=len(results),
+            details=details,
+        )
+    except Exception as _re:
+        logger.warning("保存报告失败: %s", _re)
     print("\n" + report)
 
     if no_notify:

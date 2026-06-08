@@ -3,6 +3,7 @@ import { Card, Button, Row, Col, Statistic, Table, Tag, Alert, Typography, Space
 import { ReloadOutlined, RiseOutlined, FallOutlined, LineChartOutlined } from '@ant-design/icons';
 import { api } from '../api';
 import ForecastChart from '../components/ForecastChart';
+import StockDetailDrawer from '../components/StockDetailDrawer';
 
 const { Text } = Typography;
 
@@ -10,7 +11,7 @@ export default function AnalysisPage() {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<any>(null);
   const [error, setError] = useState('');
-  const [forecastStock, setForecastStock] = useState<{code:string;name:string}|null>(null);
+  const [forecastStock, setForecastStock] = useState<any>(null);
 
   const load = async () => {
     setLoading(true); setError('');
@@ -102,7 +103,7 @@ export default function AnalysisPage() {
               return (
                 <Col xs={24} sm={12} md={8} lg={6} key={s.code} className={`fade-in fade-in-delay-${idx % 5}`}>
                   <Card className="glass-card" size="small" hoverable
-                    onClick={() => setForecastStock({ code: s.code, name: s.name || s.code })}>
+                    onClick={() => setForecastStock(s)}>
                     <Statistic
                       title={<span style={{ color: '#64748b' }}>{s.name || s.code} <Text type="secondary" style={{ fontSize: 11 }}>{s.code}</Text></span>}
                       value={s.price ?? 0}
@@ -141,24 +142,11 @@ export default function AnalysisPage() {
         <Card className="glass-card"><Text type="secondary">暂无数据，请点击"刷新分析"</Text></Card>
       )}
 
-      {/* TimesFM 预测抽屉 */}
-      <Drawer
-        title={
-          <Space>
-            <LineChartOutlined style={{ color: '#f5642a' }} />
-            <span>{forecastStock?.name} ({forecastStock?.code})</span>
-          </Space>
-        }
-        placement="right"
-        width={520}
-        open={!!forecastStock}
+      <StockDetailDrawer
+        stock={forecastStock}
+        inWatchlist={false}
         onClose={() => setForecastStock(null)}
-        styles={{ body: { padding: '16px 20px' } }}
-      >
-        {forecastStock && (
-          <ForecastChart code={forecastStock.code} name={forecastStock.name} />
-        )}
-      </Drawer>
+      />
     </div>
   );
 }

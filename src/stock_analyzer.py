@@ -321,3 +321,158 @@ class StockAnalyzer:
         reasons.append(f"KDJ=({ind.kdj_k:.1f},{ind.kdj_d:.1f},{ind.kdj_j:.1f})")
         reasons.append(f"乖离率(5)={ind.bias_5:.2f}%")
         return reasons
+
+
+# ====== 形态识别 ======
+
+@dataclass
+class PatternResult:
+    """形态识别结果"""
+    name: str
+    confidence: float  # 0.0 ~ 1.0
+    direction: str  # bullish / bearish / neutral
+    description: str = ""
+
+
+class PatternRecognizer:
+    """K 线形态识别器"""
+
+    def analyze(self, klines: List[KLine]) -> List[PatternResult]:
+        """检测所有常见形态"""
+        if not klines or len(klines) < 30:
+            return []
+        closes = np.array([k.close for k in klines])
+        highs = np.array([k.high for k in klines])
+        lows = np.array([k.low for k in klines])
+        volumes = np.array([k.volume for k in klines])
+        results: List[PatternResult] = []
+
+        for detector in [
+            self._head_and_shoulders,
+            self._double_top_bottom,
+            self._triangle,
+            self._flag,
+            self._wedge,
+        ]:
+            try:
+                if r := detector(closes, highs, lows, volumes):
+                    results.append(r)
+            except Exception:
+                continue
+        return results
+
+    def _find_pivots(self, highs: np.ndarray, lows: np.ndarray, window: int = 5) -> tuple[List[int], List[int]]:
+        """寻找局部高点和低点"""
+        peaks, troughs = [], []
+        for i in range(window, len(highs) - window):
+            if highs[i] == max(highs[i - window:i + window + 1]):
+                peaks.append(i)
+            if lows[i] == min(lows[i - window:i + window + 1]):
+                troughs.append(i)
+        return peaks, troughs
+
+    def _head_and_shoulders(self, closes, highs, lows, volumes) -> PatternResult | None:
+        """头肩顶 / 头肩底"""
+        peaks, troughs = self._find_pivots(highs, lows, 5)
+        if len(peaks) >= 3:
+            for i in range(len(peaks) - 2):
+                l, m, r = peaks[i], peaks[i + 1], peaks[i + 2]
+                if highs[m] > highs[l] and highs[m] > highs[r]:
+                    if abs(highs[l] - highs[r]) / highs[m] < 0.1:
+                        return PatternResult(
+                            name="头肩顶",
+                            confidence=min(0.85, 0.6 + abs(highs[m] - highs[l]) / highs[m]),
+                            direction="bearish",
+                            description=f"头部@{highs[m]:.2f} 左肩@{highs[l]:.2f} 右肩@{highs[r]:.2f}"
+                        )
+        if len(troughs) >= 3:
+            for i in range(len(troughs) - 2):
+                l, m, r = troughs[i], troughs[i + 1], troughs[i + 2]
+                if lows[m] < lows[l] and lows[m] < lows[r]:
+                    if abs(lows[l] - lows[r]) / max(abs(lows[m]), 0.01) < 0.1:
+                        return PatternResult(
+                            name="头肩底",
+                            confidence=min(0.85, 0.6 + abs(lows[m] - lows[l]) / max(abs(lows[m]), 0.01)),
+                            direction="bullish",
+                            description=f"头部@{lows[m]:.2f} 左肩@{lows[l]:.2f} 右肩@{lows[r]:.2f}"
+                        )
+        return None
+
+    def _double_top_bottom(self, closes, highs, lows, volumes) -> PatternResult | None:
+        """双顶 / 双底"""
+        peaks, troughs = self._find_pivots(highs, lows, 4)
+        if len(peaks) >= 2:
+            for i in range(len(peaks) - 1):
+                if abs(highs[peaks[i]] - highs[peaks[i + 1]]) / max(highs[peaks[i]], 0.01) < 0.03:
+                    gap = peaks[i + 1] - peaks[i]
+                    if 3 <= gap <= 40:
+                        return PatternResult(
+                            name="双顶",
+                            confidence=0.7,
+                            direction="bearish",
+                            description=f"双顶 @{highs[peaks[i]]:.2f} / @{highs[peaks[i + 1]]:.2f}"
+                        )
+        if len(troughs) >= 2:
+            for i in range(len(troughs) - 1):
+                if abs(lows[troughs[i]] - lows[troughs[i + 1]]) / max(abs(lows[troughs[i]]), 0.01) < 0.03:
+                    gap = troughs[i + 1] - troughs[i]
+                    if 3 <= gap <= 40:
+                        return PatternResult(
+                            name="双底",
+                            confidence=0.7,
+                            direction="bullish",
+                            description=f"双底 @{lows[troughs[i]]:.2f} / @{lows[troughs[i + 1]]:.2f}"
+                        )
+        return None
+
+    def _triangle(self, closes, highs, lows, volumes) -> PatternResult | None:
+        """三角整理"""
+        n = len(closes)
+        half = n // 2
+        left_highs, right_highs = highs[:half], highs[half:]
+        left_lows, right_lows = lows[:half], lows[half:]
+        if len(left_highs) < 5 or len(right_highs) < 5:
+            return None
+        right_high_slope = np.polyfit(range(len(right_highs)), right_highs, 1)[0]
+        right_low_slope = np.polyfit(range(len(right_lows)), right_lows, 1)[0]
+        if right_high_slope < 0 and right_low_slope > 0:
+            angle_ratio = abs(right_high_slope / right_low_slope) if right_low_slope != 0 else 999
+            if 0.5 <= angle_ratio <= 2.0:
+                return PatternResult(name="对称三角形", confidence=0.65, direction="neutral")
+        if abs(right_high_slope) < 0.05 and right_low_slope > 0:
+            return PatternResult(name="上升三角形", confidence=0.65, direction="bullish")
+        if right_high_slope < 0 and abs(right_low_slope) < 0.05:
+            return PatternResult(name="下降三角形", confidence=0.65, direction="bearish")
+        return None
+
+    def _flag(self, closes, highs, lows, volumes) -> PatternResult | None:
+        """旗形整理"""
+        n = len(closes)
+        half = n // 2
+        pre = closes[:half]
+        post = closes[half:]
+        pre_trend = np.polyfit(range(len(pre)), pre, 1)[0]
+        post_trend = np.polyfit(range(len(post)), post, 1)[0]
+        if abs(pre_trend) > 0.5 and abs(post_trend) < 0.3:
+            direction = "bullish" if pre_trend > 0 else "bearish"
+            name = "上升旗形" if direction == "bullish" else "下降旗形"
+            return PatternResult(name=name, confidence=0.6, direction=direction)
+        return None
+
+    def _wedge(self, closes, highs, lows, volumes) -> PatternResult | None:
+        """楔形"""
+        n = len(closes)
+        half = n // 2
+        post_h = highs[half:]
+        post_l = lows[half:]
+        if len(post_h) < 5:
+            return None
+        h_slope = np.polyfit(range(len(post_h)), post_h, 1)[0]
+        l_slope = np.polyfit(range(len(post_l)), post_l, 1)[0]
+        if h_slope > 0 and l_slope > 0 and l_slope > h_slope:
+            return PatternResult(name="上升楔形", confidence=0.6, direction="bearish",
+                               description="上升楔形（看跌反转信号）")
+        if h_slope < 0 and l_slope < 0 and h_slope < l_slope:
+            return PatternResult(name="下降楔形", confidence=0.6, direction="bullish",
+                               description="下降楔形（看涨反转信号）")
+        return None

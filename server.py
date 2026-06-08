@@ -126,8 +126,14 @@ async def _run_analysis_background() -> None:
                 "support": _safe(r.support), "resistance": _safe(r.resistance),
             })
         stocks.sort(key=lambda s: s["score"], reverse=True)
+        from src.services.report_service import get_report_service
+        from src.utils.cache import set_cached
         set_cached("analyze", {"success": True, "count": len(results), "stocks": stocks,
                                 "report": report, "summaries": summaries})
+        try:
+            get_report_service().save_current_analysis({"success": True, "count": len(results), "stocks": stocks, "report": report, "summaries": summaries}, report)
+        except Exception as _re:
+            logger.warning("保存报告失败: %s", _re)
         logger.info("后台分析完成，%d 只股票", len(results))
     except Exception as e:
         logger.error("后台分析失败: %s", e)
@@ -195,6 +201,7 @@ async def trigger_analysis():
     async def _run():
         from src.services.analysis_service import AnalysisService
         from src.formatters import format_analysis_report, format_short_notification
+        from src.services.report_service import get_report_service
         from src.notification_sender.factory import send_to_all
         service = AnalysisService(config)
         results = await service.full_analysis()
@@ -202,6 +209,15 @@ async def trigger_analysis():
             logger.warning("分析结果为空")
             return
         report = format_analysis_report(results)
+        
+        # 自动保存报告
+        try:
+            from src.utils.cache import get_cached
+            cached = get_cached("analyze", ttl=300)
+            if cached:
+                get_report_service().save_current_analysis(cached, report)
+        except Exception as e:
+            logger.warning("保存报告失败: %s", e)
         
         # TimesFM 预测
         forecasts = {}
@@ -291,8 +307,8 @@ async def search_suggest(q: str = "", market: str = "cn", limit: int = 8):
 
 # ====== K 线数据 ======
 @app.get("/api/v1/stocks/{code:str}/kline")
-async def stock_kline(code: str, count: int = 60):
-    """获取股票 K 线数据（用于前端展示 K 线图 + 成交量柱状图）"""
+async def stock_kline(code: str, count: int = 60, period: str = "daily"):
+    """获取股票 K 线数据（支持日/周/月）"""
     from src.services.stock_service import StockService
     stock_service = StockService(config)
     klines = await stock_service.get_kline_history(code, count=count)
@@ -312,6 +328,74 @@ async def stock_kline(code: str, count: int = 60):
             "change_pct": k.change_pct,
         })
     return {"success": True, "code": code, "count": len(items), "items": items}
+
+
+# ====== 形态识别 ======
+@app.get("/api/v1/stocks/{code:str}/patterns")
+async def stock_patterns(code: str):
+    """识别 K 线形态"""
+    from src.services.stock_service import StockService
+    from src.stock_analyzer import PatternRecognizer
+    stock_service = StockService(config)
+    klines = await stock_service.get_kline_history(code, count=120)
+    if not klines:
+        raise HTTPException(404, f"无法获取 {code} 的 K 线数据")
+    recognizer = PatternRecognizer()
+    patterns = recognizer.analyze(klines)
+    return {"success": True, "code": code, "patterns": [p.__dict__ for p in patterns]}
+
+
+# ====== 财报日历 ======
+@app.get("/api/v1/stocks/{code:str}/earnings")
+async def stock_earnings(code: str):
+    """获取财报日历（近 4 个季度）"""
+    import akshare as ak
+    import pandas as pd
+    import re
+    
+    # 提取纯数字代码
+    code_num = re.sub(r'[^0-9]', '', code)
+    sh_code = f"sh{code_num}" if code.startswith(("SH", "sh", "6")) else f"sz{code_num}"
+    
+    try:
+        df = ak.stock_financial_report_sina(stock=sh_code, symbol="利润表")
+        if df is not None and not df.empty and "基本每股收益" in df.columns and "公告日期" in df.columns:
+            df = df.sort_values("报告日", ascending=False).head(4)
+            earnings = []
+            for _, row in df.iterrows():
+                report_date = str(row.get("报告日", ""))
+                if len(report_date) >= 7:
+                    quarter_num = (int(report_date[4:6]) - 1) // 3 + 1
+                    q_label = f"{report_date[:4]}Q{quarter_num}"
+                else:
+                    q_label = report_date
+                eps = row.get("基本每股收益")
+                eps_val = float(eps) if pd.notna(eps) and eps else None
+                notice = row.get("公告日期", "")
+                notice_str = str(notice)[:10] if pd.notna(notice) else ""
+                earnings.append({
+                    "quarter": q_label,
+                    "date": notice_str or report_date[:10],
+                    "actual_eps": eps_val,
+                })
+            return {"success": True, "code": code, "earnings": earnings}
+    except Exception as e:
+        logger.warning("获取 %s 财报失败: %s", code, e)
+    
+    # 降级：返回季度标签
+    import datetime
+    today = datetime.date.today()
+    quarters = []
+    for i in range(4):
+        q_num = (today.month - 1) // 3 - i
+        year = today.year + (q_num - 1) // 4 if q_num <= 0 else today.year
+        q = (q_num - 1) % 4 + 1 if q_num > 0 else (q_num % 4 + 4) % 4 + 1
+        quarters.append({
+            "quarter": f"{year}Q{q}",
+            "date": f"{year}-{(q*3):02d}-15",
+            "actual_eps": None,
+        })
+    return {"success": True, "code": code, "earnings": list(reversed(quarters))}
 
 
 # ====== TimesFM 价格预测 ======
@@ -608,6 +692,43 @@ async def backtest(code: str = Query(...), strategy: str = Query("ma_cross"), st
             "trades": [t.__dict__ for t in result.trades[-20:]],
         },
     }
+
+
+# ====== 报告管理 ======
+@app.get("/api/v1/reports")
+async def list_reports(page: int = 1, page_size: int = 10):
+    from src.services.report_service import get_report_service
+    service = get_report_service()
+    items, total = service.list(page, page_size)
+    return {"success": True, "items": items, "total": total, "page": page, "page_size": page_size}
+
+
+@app.get("/api/v1/reports/{rid}")
+async def get_report(rid: str):
+    from src.services.report_service import get_report_service
+    service = get_report_service()
+    record = service.get(rid)
+    if not record:
+        from fastapi import HTTPException
+        raise HTTPException(404, "报告不存在")
+    return {"success": True, "data": record}
+
+
+@app.delete("/api/v1/reports/{rid}")
+async def delete_report(rid: str):
+    from src.services.report_service import get_report_service
+    service = get_report_service()
+    ok = service.delete(rid)
+    return {"success": ok, "message": "已删除" if ok else "报告不存在"}
+
+
+@app.post("/api/v1/reports/delete")
+async def delete_reports_batch(payload: dict):
+    from src.services.report_service import get_report_service
+    rids = payload.get("ids", [])
+    service = get_report_service()
+    count = service.delete_multi(rids)
+    return {"success": True, "deleted": count}
 
 
 # ====== 配置管理 ======

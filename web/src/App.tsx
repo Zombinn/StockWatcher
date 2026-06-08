@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { ConfigProvider, Layout, Menu, theme, Button, Typography } from 'antd';
 import {
   BarChartOutlined, SearchOutlined, LineChartOutlined, WalletOutlined,
-  AlertOutlined, RobotOutlined, ExperimentOutlined, SettingOutlined, CloseOutlined,
+  AlertOutlined, RobotOutlined, ExperimentOutlined, SettingOutlined, CloseOutlined, FileTextOutlined,
 } from '@ant-design/icons';
 import AgentPanel from './pages/AgentPanel';
 import AnalysisPage from './pages/AnalysisPage';
@@ -13,6 +13,7 @@ import AlertsPage from './pages/AlertsPage';
 import HomePage from './pages/HomePage';
 import StockScreeningPage from './pages/StockScreeningPage';
 import BacktestPage from './pages/BacktestPage';
+import ReportPage from "./pages/ReportPage";
 import ConfigPage from './pages/ConfigPage';
 
 const { Content, Sider } = Layout;
@@ -27,17 +28,19 @@ const menuItems = [
   { key: 'alerts', icon: <AlertOutlined />, label: '告警' },
   { key: 'backtest', icon: <ExperimentOutlined />, label: '回测' },
   { key: 'config', icon: <SettingOutlined />, label: '配置' },
+  { key: 'report', icon: <FileTextOutlined />, label: '报告' },
 ];
 
 const pages: Record<string, React.FC> = {
   home: HomePage, screening: StockScreeningPage,
   analysis: AnalysisPage, market: MarketPage, portfolio: PortfolioPage,
-  alerts: AlertsPage, backtest: BacktestPage, config: ConfigPage,
+  alerts: AlertsPage, backtest: BacktestPage, report: ReportPage,
+  config: ConfigPage,
 };
 
 function AppInner() {
   const [page, setPage] = useState('home');
-  const [agentOpen, setAgentOpen] = useState(true);
+  const [agentOpen, setAgentOpen] = useState(false);
   const [agentWidth, setAgentWidth] = useState(400);
   // keep-alive：记录访问过的页面，首次访问才挂载，之后保留在 DOM（隐藏），切回不重新请求
   const [visited, setVisited] = useState<Set<string>>(() => new Set(['home']));
@@ -154,7 +157,7 @@ function AppInner() {
         justifyContent: 'center',
         gap: 4,
         cursor: 'pointer',
-        zIndex: 1001,
+        zIndex: 900,
         boxShadow: agentOpen
           ? '-2px 0 12px rgba(245,100,42,0.35), 0 4px 20px rgba(245,100,42,0.15)'
           : '2px 0 12px rgba(245,100,42,0.3), 0 4px 20px rgba(245,100,42,0.12)',
@@ -181,7 +184,7 @@ function AppInner() {
         display: 'flex',
         flexDirection: 'column',
         overflow: 'hidden',
-        zIndex: 1000,
+        zIndex: 899,
         borderLeft: '1px solid rgba(0,0,0,0.08)',
         boxShadow: agentOpen ? '-8px 0 32px rgba(0,0,0,0.08)' : 'none',
       }}>
