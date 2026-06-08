@@ -71,21 +71,20 @@ export default function AlertsPage() {
       render: (v: number | null) => v != null ? <span style={{ fontWeight: 500 }}>{v}</span> : <Text type="secondary">-</Text>,
     },
     { title: '操作', width: 70,
-      render: (_: any, r: any) => <Button danger size="small" icon={<DeleteOutlined />} onClick={() => remove(r.code)} />,
+      render: (_: any, r: any) => <Button danger size="small" icon={<DeleteOutlined />} onClick={(e: any) => { e.stopPropagation(); remove(r.code); }} />,
     },
   ];
 
   // Merge multi-type rules into code-keyed rows
-  const groupedRules = (data?.rules || []).reduce((acc: any[], r: any) => {
-    const existing = acc.find(x => x.code === r.code);
-    if (existing) {
-      existing[r.rule_type] = r.threshold;
-    } else {
-      acc.push({ code: r.code, name: r.name, price_above: null, price_below: null, change_pct: null, volume: null, enabled: r.enabled, id: r.code });
-      acc[acc.length - 1][r.rule_type] = r.threshold;
-    }
-    return acc;
-  }, []);
+  const groupedRules = (data?.rules || []).map((r: any) => ({
+    code: r.code, name: r.name || r.code,
+    price_above: r.price_above ?? null,
+    price_below: r.price_below ?? null,
+    change_pct: r.change_pct ?? null,
+    volume: r.volume ?? null,
+    enabled: r.enabled,
+    id: r.code,
+  }));
 
   return (
     <div>
