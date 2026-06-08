@@ -105,7 +105,7 @@ const handleMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => 
         {tooltip && (
           <div style={{
             position: 'absolute',
-            left: Math.min(tooltip.x + 12, (containerRef.current?.clientWidth || 400) - 200),
+            left: tooltip.x > ((containerRef.current?.clientWidth || 400) / 2) ? Math.max(4, tooltip.x - 180) : tooltip.x + 16,
             top: 4,
             background: '#fff',
             border: '1px solid rgba(0,0,0,0.12)',
