@@ -59,7 +59,7 @@ function NorthboundCard({ data }: { data: any }) {
 
 /* ─────────── 板块排行 ─────────── */
 function SectorList({ title, items, icon, up }: { title: string; items: any[]; icon: React.ReactNode; up: boolean }) {
-  if (!items.length) return null;
+  const isEmpty = !items || items.length === 0;
   return (
     <Card className="glass-card" title={
       <Space size={6}>
@@ -67,7 +67,11 @@ function SectorList({ title, items, icon, up }: { title: string; items: any[]; i
         <Text strong style={{ fontSize: 13 }}>{title}</Text>
       </Space>
     } bodyStyle={{ padding: '8px 14px' }}>
-      {items.slice(0, 8).map((s: any, i: number) => (
+      {isEmpty ? (
+        <div style={{ textAlign: 'center', padding: '20px 0', color: '#94a3b8', fontSize: 12 }}>
+          当前市场无板块数据
+        </div>
+      ) : items.slice(0, 8).map((s: any, i: number) => (
         <div key={s.name} style={{
           display: 'flex', justifyContent: 'space-between', alignItems: 'center',
           padding: '6px 0',
@@ -209,9 +213,9 @@ function StrategyPoints({ result }: { result: any }) {
 
 /* ─────────── 主页面 ─────────── */
 const MARKET_OPTIONS = [
-  { value: 'cn', label: '🇨🇳 A 股' },
-  { value: 'hk', label: '🇭🇰 港股' },
-  { value: 'us', label: '🇺🇸 美股' },
+  { value: 'cn', label: 'A 股' },
+  { value: 'hk', label: '港股' },
+  { value: 'us', label: '美股' },
 ];
 
 export default function HomePage() {
@@ -238,12 +242,13 @@ export default function HomePage() {
   }, []);
 
   useEffect(() => {
-    api.marketReview()
+    setMarketLoading(true);
+    api.marketReview(market)
       .then(d => setMarketData(d))
       .catch(() => {})
       .finally(() => setMarketLoading(false));
     loadWatchlist();
-  }, []);
+  }, [market]);
 
   // Load recommendations when market changes
   useEffect(() => {
@@ -463,31 +468,28 @@ export default function HomePage() {
           <Text strong style={{ fontSize: 16, color: '#1a1a2e' }}>大盘概览</Text>
         </Space>
         <Button type="text" size="small" icon={<ReloadOutlined />}
-          onClick={() => { setMarketLoading(true); api.marketReview().then(d => setMarketData(d)).finally(() => setMarketLoading(false)); }}
+          onClick={() => { setMarketLoading(true); api.marketReview(market).then(d => setMarketData(d)).finally(() => setMarketLoading(false)); }}
           style={{ float: 'right', color: '#94a3b8' }} />
       </div>
 
       {marketLoading ? (
         <Card className="glass-card" bodyStyle={{ padding: 40 }}>
-          <Space><Spin size="small" /><Text type="secondary" style={{ fontSize: 12 }}>加载市场数据...</Text></Space>
+          <Space><Spin size="small" /><Text type="secondary" style={{ fontSize: 12 }}>加载 {MARKET_OPTIONS.find(m => m.value === market)?.label || market} 数据...</Text></Space>
         </Card>
       ) : marketData ? (
         <>
           <IndexCards data={marketData} />
-          <Row gutter={12} style={{ marginTop: 12 }}>
-            <Col xs={24} sm={8}>
-              <NorthboundCard data={marketData} />
-            </Col>
-            <Col xs={12} sm={8}>
-              <SectorList title="🟢 领涨板块" items={marketData.top_sectors || []} icon={<RiseOutlined style={{ color: '#e53935' }} />} up />
-            </Col>
-            <Col xs={12} sm={8}>
-              <SectorList title="🔴 领跌板块" items={marketData.fall_sectors || []} icon={<FallOutlined style={{ color: '#43a047' }} />} up={false} />
-            </Col>
-          </Row>
+          <div style={{ display: 'flex', gap: 12, marginTop: 12, flexWrap: 'wrap' }}>
+            <div style={{ flex: 1, minWidth: 300 }}>
+              <SectorList title="领涨板块" items={marketData.top_sectors || []} icon={<RiseOutlined style={{ color: '#e53935' }} />} up />
+            </div>
+            <div style={{ flex: 1, minWidth: 300 }}>
+              <SectorList title="领跌板块" items={marketData.fall_sectors || []} icon={<FallOutlined style={{ color: '#43a047' }} />} up={false} />
+            </div>
+          </div>
         </>
       ) : (
-        <Card className="glass-card"><Empty description="暂无市场数据" /></Card>
+        <Card className="glass-card"><Empty description={`${MARKET_OPTIONS.find(m => m.value === market)?.label || market} 暂无市场数据`} /></Card>
       )}
     </div>
   );

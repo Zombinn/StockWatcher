@@ -477,12 +477,12 @@ async def analyze_with_llm(code: str):
 
 # ====== 大盘复盘 ======
 @app.get("/api/v1/market/review")
-async def market_review():
+async def market_review(market: str = "cn"):
     from src.utils.cache import cached_call
 
     async def _compute():
         from src.core.market_review import MarketReviewer
-        result = await MarketReviewer().review()
+        result = await MarketReviewer().review(market)
         return {
             "success": True,
             "indices": [i.__dict__ for i in result.indices],
@@ -495,7 +495,7 @@ async def market_review():
             "timestamp": result.timestamp,
         }
 
-    return await cached_call("market_review", 300, _compute)
+    return await cached_call(f"market_review_{market}", 300, _compute)
 
 
 # ====== 经济日历 ======

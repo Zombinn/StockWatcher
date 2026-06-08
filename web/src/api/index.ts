@@ -17,7 +17,7 @@ export const api = {
   analyzeWithLLM: (code: string) => request<any>(`/analyze/llm/${code}`),
 
   // 大盘
-  marketReview: () => request<any>('/market/review'),
+  marketReview: (market = "cn") => request<any>(`/market/review?market=${market}`),
   economicCalendar: (days = 90) => request<any>(`/market/economic-calendar?days=${days}`),
 
   // 持仓

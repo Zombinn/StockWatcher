@@ -14,6 +14,13 @@ from src.config import get_config
 logger = logging.getLogger(__name__)
 from src.utils.blocking import run_blocking
 
+MARKET_INDICES = {
+    "cn": ["上证指数", "深证成指", "创业板指", "科创50", "沪深300"],
+    "hk": ["恒生指数", "恒生科技", "国企指数"],
+    "us": ["道琼斯", "纳斯达克", "标普500"],
+}
+
+
 AKSHARE_INDEX_MAP = {
     "上证指数": "1.000001",
     "深证成指": "0.399001",
@@ -41,7 +48,7 @@ def _http_client() -> httpx.AsyncClient:
     return httpx.AsyncClient(
         headers=_headers(),
         follow_redirects=True,
-        timeout=6.0,
+        timeout=15.0,
         limits=httpx.Limits(max_keepalive_connections=5, max_connections=10),
     )
 
@@ -118,11 +125,11 @@ class MarketReviewer:
     def __init__(self):
         self.config = get_config()
 
-    async def fetch_indices(self) -> List[IndexData]:
-        """获取主要指数数据（新浪源，东方财富已禁用 — 网络不可达）"""
-        return await self._fetch_indices_sina()
+    async def fetch_indices(self, market: str = "cn") -> List[IndexData]:
+        """获取主要指数数据"""
+        return await self._fetch_indices_sina(market)
 
-    async def _fetch_indices_sina(self) -> List[IndexData]:
+    async def _fetch_indices_sina(self, market: str = "cn") -> List[IndexData]:
         """新浪指数源（东方财富不可达时降级，不依赖 eastmoney）"""
         def _run() -> List[IndexData]:
             try:
@@ -131,7 +138,8 @@ class MarketReviewer:
             except Exception as e:
                 logger.warning("新浪指数获取失败: %s", e)
                 return []
-            order = ["上证指数", "深证成指", "创业板指", "科创50", "沪深300"]
+            MARKET_INDICES
+            order = MARKET_INDICES.get(market, MARKET_INDICES["cn"])
             want = set(order)
             seen: dict = {}
             for _, r in df[df["名称"].isin(want)].iterrows():
@@ -150,51 +158,17 @@ class MarketReviewer:
 
         return await run_blocking(_run)
 
-    async def fetch_sectors(self, top: int = 10) -> tuple[List[SectorData], List[SectorData]]:
-        """获取板块涨幅/跌幅排行"""
-        top_sectors, fall_sectors = [], []
+    async def fetch_sectors(self, top: int = 10, market: str = "cn") -> tuple[List[SectorData], List[SectorData]]:
+        """获取板块涨幅/跌幅排行（A股新浪，港股美股无板块数据）"""
+        if market != "cn":
+            return [], []
         try:
-            params = {
-                "pn": 1, "pz": top,
-                "fs": "m:90+t:3",
-                "fields": "f2,f3,f4,f12,f14,f104,f105",
-                "fid": "f3",
-            }
-            # 涨幅排行 (po=1 降序)
-            params["po"] = 1
-            data = await _fetch_json("https://push2.eastmoney.com/api/qt/clist/get", params.copy())
-            if data and isinstance(data, dict) and "data" in data and data["data"]:
-                items = data["data"].get("diff", [])
-                if isinstance(items, list):
-                    for item in items:
-                        top_sectors.append(SectorData(
-                            name=item.get("f14", ""),
-                            change_pct=float(item.get("f3", 0)),
-                            rise_count=int(item.get("f104", 0)),
-                            fall_count=int(item.get("f105", 0)),
-                        ))
-
-            # 跌幅排行 (po=0 升序)
-            params["po"] = 0
-            data = await _fetch_json("https://push2.eastmoney.com/api/qt/clist/get", params.copy())
-            if data and isinstance(data, dict) and "data" in data and data["data"]:
-                items = data["data"].get("diff", [])
-                if isinstance(items, list):
-                    for item in items:
-                        fall_sectors.append(SectorData(
-                            name=item.get("f14", ""),
-                            change_pct=float(item.get("f3", 0)),
-                            rise_count=int(item.get("f104", 0)),
-                            fall_count=int(item.get("f105", 0)),
-                        ))
+            return await self._fetch_sectors_sina(top, market)
         except Exception as e:
-            logger.warning("获取板块数据失败: %s", e)
-        if not top_sectors and not fall_sectors:
-            logger.info("东方财富板块为空，降级到新浪源")
-            top_sectors, fall_sectors = await self._fetch_sectors_sina(top)
-        return top_sectors, fall_sectors
+            logger.warning("新浪板块获取失败: %s", e)
+        return [], []
 
-    async def _fetch_sectors_sina(self, top: int = 10) -> tuple[List[SectorData], List[SectorData]]:
+    async def _fetch_sectors_sina(self, top: int = 10, market: str = "cn") -> tuple[List[SectorData], List[SectorData]]:
         """新浪行业板块源（东方财富不可达时降级）"""
         def _pct(v) -> float:
             try:
@@ -240,11 +214,11 @@ class MarketReviewer:
             logger.warning("获取北向资金失败: %s", e)
         return None
 
-    async def review(self) -> MarketReviewResult:
+    async def review(self, market: str = "cn") -> MarketReviewResult:
         """执行大盘复盘"""
         result = MarketReviewResult()
-        result.indices = await self.fetch_indices()
-        result.top_sectors, result.fall_sectors = await self.fetch_sectors(top=50)
+        result.indices = await self.fetch_indices(market)
+        result.top_sectors, result.fall_sectors = await self.fetch_sectors(top=50, market=market)
         result.northbound = await self.fetch_northbound()
 
         # 生成摘要
