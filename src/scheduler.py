@@ -42,10 +42,22 @@ class Scheduler:
             except Exception as e:
                 logger.error("立即执行 [%s] 失败: %s", name or "task", e)
 
+    def _wrap_task(self, job_dict):
+        """包装任务函数，添加日志"""
+        original = job_dict["task"]
+        def _wrapped():
+            logger.info("调度器触发任务: %s", job_dict["name"])
+            try:
+                original()
+                logger.info("调度器任务完成: %s", job_dict["name"])
+            except Exception as e:
+                logger.error("调度器任务失败: %s, %s", job_dict["name"], e)
+        return _wrapped
+
     def start(self) -> None:
         """启动调度器"""
         for job in self._jobs:
-            schedule.every().day.at(job["time"]).do(job["task"])
+            schedule.every().day.at(job["time"]).do(self._wrap_task(job))
             logger.info("定时任务 [%s] 已设置: 每天 %s 执行", job["name"], job["time"])
 
         self._running = True
@@ -61,6 +73,13 @@ class Scheduler:
             signal.signal(signal.SIGINT, _shutdown)
             signal.signal(signal.SIGTERM, _shutdown)
 
+        _log_timer = 0
         while self._running:
-            schedule.run_pending()
-            time.sleep(1)
+            try:
+                schedule.run_pending()
+
+                _log_timer += 1
+                time.sleep(1)
+            except Exception as e:
+                logger.error("调度器循环异常: %s", e)
+                time.sleep(5)

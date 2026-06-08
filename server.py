@@ -35,15 +35,17 @@ def get_agent():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("StockWatcher API 启动")
-    # 预加载 TimesFM 模型（阻塞，等模型就绪后再接受请求）
-    try:
-        from src.utils.blocking import run_blocking
-        from src.llm.timesfm_forecaster import _load_model
-        logger.info("正在预加载 TimesFM 模型（首次需下载 ~880MB，请耐心等待）...")
-        await run_blocking(_load_model)
-        logger.info("TimesFM 模型预加载完成")
-    except Exception as e:
-        logger.warning("TimesFM 预加载失败: %s", e)
+    # TimesFM 在后台线程预加载，不阻塞服务启动
+    import asyncio as _aio
+    async def _warmup_timesfm():
+        try:
+            from src.utils.blocking import run_blocking
+            from src.llm.timesfm_forecaster import _load_model
+            await run_blocking(_load_model)
+            logger.info("TimesFM 模型预加载完成")
+        except Exception as e:
+            logger.warning("TimesFM 预加载失败（不影响其他功能）: %s", e)
+    _aio.create_task(_warmup_timesfm())
     yield
     logger.info("StockWatcher API 关闭")
 
@@ -194,9 +196,7 @@ async def trigger_analysis():
         from src.services.analysis_service import AnalysisService
         from src.formatters import format_analysis_report, format_short_notification
         from src.notification_sender.factory import send_to_all
-        from src.config import get_config
-        cfg = get_config()
-        service = AnalysisService(cfg)
+        service = AnalysisService(config)
         results = await service.full_analysis()
         if not results:
             logger.warning("分析结果为空")
@@ -209,7 +209,7 @@ async def trigger_analysis():
             from src.llm.timesfm_forecaster import forecast as tfm_forecast
             from src.services.stock_service import StockService
             logger.info("开始获取 TimesFM 预测...")
-            stock_service = StockService(cfg)
+            stock_service = StockService(config)
             for code in results:
                 try:
                     klines = await stock_service.get_kline_history(code, count=60)
@@ -217,11 +217,8 @@ async def trigger_analysis():
                         fc = await tfm_forecast(klines, horizon=5)
                         if fc and fc.forecast:
                             forecasts[code] = fc
-                            logger.info("TimesFM 预测成功: %s", code)
                 except Exception as e:
                     logger.warning("TimesFM 预测失败 %s: %s", code, e)
-            if forecasts:
-                logger.info("TimesFM 预测完成: %d 只", len(forecasts))
         except Exception as e:
             logger.warning("TimesFM 模块异常: %s", e)
         
