@@ -214,7 +214,7 @@ export default function StockScreeningPage() {
             dataSource={results}
             columns={columns}
             rowKey="code"
-            pagination={false}
+            pagination={{ defaultPageSize: 10, pageSizeOptions: [10, 20, 50], showSizeChanger: true }}
             size="small"
             scroll={{ x: 'max-content' }}
             rowSelection={{

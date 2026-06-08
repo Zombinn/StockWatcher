@@ -132,7 +132,7 @@ export default function AnalysisPage() {
 
           {/* 明细表 */}
           <Card className="glass-card" title={<span style={{ fontSize: 15, fontWeight: 600 }}>分析明细</span>}>
-            <Table dataSource={data.stocks} columns={columns} rowKey="code" pagination={false} size="small"
+            <Table dataSource={data.stocks} columns={columns} rowKey="code" pagination={{ defaultPageSize: 10, pageSizeOptions: [10, 20, 50], showSizeChanger: true }} size="small"
               scroll={{ x: 'max-content' }} />
           </Card>
         </>

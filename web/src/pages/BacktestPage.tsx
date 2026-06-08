@@ -199,7 +199,7 @@ export default function BacktestPage() {
               bodyStyle={{ padding: 0 }}>
               {data.trades?.length > 0 ? (
                 <Table dataSource={data.trades.slice().reverse()} columns={tradeColumns} rowKey="date"
-                  pagination={false} size="small" scroll={{ y: 420 }} />
+                  pagination={{ defaultPageSize: 10, pageSizeOptions: [10, 20, 50], showSizeChanger: true }} size="small" scroll={{ y: 420 }} />
               ) : <Empty description="该策略未产生交易" style={{ padding: 40 }} />}
             </Card>
           </Col>

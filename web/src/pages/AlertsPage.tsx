@@ -121,7 +121,7 @@ export default function AlertsPage() {
           )}
           <Card className="glass-card" title={<span style={{ fontSize: 15, fontWeight: 600 }}>告警规则</span>} style={{ marginBottom: 16 }}>
             {data.rules?.length > 0 ? (
-              <Table dataSource={groupedRules} columns={ruleColumns} rowKey="code" pagination={false} size="small"
+              <Table dataSource={groupedRules} columns={ruleColumns} rowKey="code" pagination={{ defaultPageSize: 10, pageSizeOptions: [10, 20, 50], showSizeChanger: true }} size="small"
                 onRow={(record: any) => ({
                   style: { cursor: 'pointer' },
                   onClick: () => {
@@ -151,7 +151,7 @@ export default function AlertsPage() {
                   { title: '消息', dataIndex: 'message' },
                 ]}
                 rowKey="timestamp"
-                pagination={false}
+                pagination={{ defaultPageSize: 10, pageSizeOptions: [10, 20, 50], showSizeChanger: true }}
                 size="small"
               />
             ) : <Empty description="暂无告警事件" />}

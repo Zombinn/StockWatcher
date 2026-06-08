@@ -100,7 +100,7 @@ export default function WatchlistPanel() {
         }}>生成报告</Button>
       </div>
       {rows.length > 0 ? (
-        <Table dataSource={rows} columns={columns} rowKey="code" pagination={false} size="small" loading={loading}
+        <Table dataSource={rows} columns={columns} rowKey="code" pagination={{ defaultPageSize: 10, pageSizeOptions: [10, 20, 50], showSizeChanger: true }} size="small" loading={loading}
           scroll={{ x: 'max-content' }}
           onRow={(record: any) => ({
             style: { cursor: 'pointer' },

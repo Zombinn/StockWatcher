@@ -185,7 +185,7 @@ export default function PortfolioPage() {
           )}
           <Card className="glass-card" title={<span style={{ fontSize: 15, fontWeight: 600 }}>持仓明细 ({filteredPositions.length} 只)</span>}>
             {filteredPositions.length > 0 ? (
-              <Table dataSource={filteredPositions} columns={columns} rowKey="code" pagination={false} size="small"
+              <Table dataSource={filteredPositions} columns={columns} rowKey="code" pagination={{ defaultPageSize: 10, pageSizeOptions: [10, 20, 50], showSizeChanger: true }} size="small"
                 onRow={(record: any) => ({
                   style: { cursor: 'pointer' },
                   onClick: async () => {
