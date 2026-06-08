@@ -41,7 +41,7 @@ const pages: Record<string, React.FC> = {
 function AppInner() {
   const [page, setPage] = useState('home');
   const [agentOpen, setAgentOpen] = useState(false);
-  const [agentWidth, setAgentWidth] = useState(400);
+  const [agentWidth, setAgentWidth] = useState(640);
   // keep-alive：记录访问过的页面，首次访问才挂载，之后保留在 DOM（隐藏），切回不重新请求
   const [visited, setVisited] = useState<Set<string>>(() => new Set(['home']));
 
@@ -144,7 +144,7 @@ function AppInner() {
       {/* Agent toggle button — fixed on the right edge */}
       <div onClick={() => setAgentOpen(!agentOpen)} style={{
         position: 'fixed',
-        right: agentOpen ? Math.max(agentWidth, 320) : 0,
+        right: agentOpen ? Math.max(agentWidth, 640) : 0,
         top: '50%',
         transform: 'translateY(-50%)',
         width: 32,
@@ -176,8 +176,8 @@ function AppInner() {
         right: 0,
         bottom: 0,
         width: agentOpen ? agentWidth : 0,
-        minWidth: agentOpen ? 320 : 0,
-        maxWidth: 600,
+        minWidth: agentOpen ? 640 : 0,
+        maxWidth: 1000,
         transform: agentOpen ? 'translateX(0)' : 'translateX(100%)',
         transition: 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1), transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
         background: '#ffffff',

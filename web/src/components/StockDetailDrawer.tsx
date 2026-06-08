@@ -82,7 +82,7 @@ export default function StockDetailDrawer({ stock, inWatchlist, onClose, onAddTo
         </Space>
       }
       placement="right"
-      width={600}
+      width={900}
       open={!!s}
       onClose={onClose}
       styles={{ body: { padding: '16px 20px', overflow: 'auto' } }}
