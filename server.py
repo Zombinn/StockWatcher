@@ -488,6 +488,7 @@ async def market_review():
             "indices": [i.__dict__ for i in result.indices],
             "top_sectors": [s.__dict__ for s in result.top_sectors[:5]],
             "fall_sectors": [s.__dict__ for s in result.fall_sectors[:5]],
+            "all_sectors": [s.__dict__ for s in result.top_sectors] + [s.__dict__ for s in result.fall_sectors],
             "northbound": result.northbound.__dict__ if result.northbound else None,
             "market_summary": result.market_summary,
             "llm_analysis": result.llm_analysis,
@@ -495,6 +496,14 @@ async def market_review():
         }
 
     return await cached_call("market_review", 300, _compute)
+
+
+# ====== 经济日历 ======
+@app.get("/api/v1/market/economic-calendar")
+async def economic_calendar(days: int = 90):
+    from src.core.economic_calendar import fetch_economic_calendar
+    events = await fetch_economic_calendar(days)
+    return {"success": True, "events": events}
 
 
 # ====== 持仓管理 ======
@@ -692,6 +701,58 @@ async def backtest(code: str = Query(...), strategy: str = Query("ma_cross"), st
             "trades": [t.__dict__ for t in result.trades[-20:]],
         },
     }
+
+
+# ====== 回测报告 ======
+@app.post("/api/v1/backtest/report")
+async def backtest_report(payload: dict):
+    from src.core.backtest_engine import BacktestEngine
+    code = payload.get("code", "")
+    strategy = payload.get("strategy", "ma_cross")
+    start_date = payload.get("start_date", "")
+    end_date = payload.get("end_date", "")
+    fmt = payload.get("format", "markdown")
+    engine = BacktestEngine()
+    result = await engine.run(code, strategy, start_date, end_date)
+    is_pos = result.total_return_pct >= 0
+    md = f"# {'📈' if is_pos else '📉'} {result.code} Backtest Report\n\n"
+    md += f"**Strategy**: {strategy}  **Period**: {result.start_date} ~ {result.end_date}\n\n"
+    md += "## Performance\n\n| Metric | Value |\n|--------|-------|\n"
+    md += f"| Initial Capital | {result.initial_capital:,.2f} |\n"
+    md += f"| Final Value | {result.final_value:,.2f} |\n"
+    md += f"| Total Return | {result.total_return_pct:+.2f}% |\n"
+    md += f"| Annual Return | {(result.annual_return or 0) * 100:+.2f}% |\n"
+    md += f"| Max Drawdown | {result.max_drawdown:.2f}% |\n"
+    md += f"| Win Rate | {result.win_rate:.2f}% |\n"
+    md += f"| Sharpe Ratio | {result.sharpe_ratio:.2f} |\n"
+    md += f"| Total Trades | {result.total_trades} |\n\n"
+    md += "## Trades\n\n"
+    if result.trades:
+        for t in result.trades[-30:]:
+            act = "BUY" if t.action == "buy" else "SELL"
+            md += f"- `{t.date}` **{act}** @ {t.price:.2f} x {t.shares} = {t.amount:,.2f} -- {t.reason}\n"
+    else:
+        md += "No trades generated.\n"
+    if fmt == "html":
+        html = "<html><body><pre>" + md.replace("\n", "<br>") + "</pre></body></html>"
+        return {"success": True, "content": html, "format": "html"}
+    return {"success": True, "content": md, "format": "markdown"}
+
+
+@app.post("/api/v1/backtest/report/save")
+async def backtest_report_save(payload: dict):
+    from src.services.report_service import get_report_service
+    code = payload.get("code", "")
+    content = payload.get("content", "")
+    fmt = payload.get("format", "markdown")
+    service = get_report_service()
+    rid = service.save(
+        title=f"Backtest Report {code}",
+        summary=content[:200],
+        stock_count=1,
+        details={"code": code, "backtest_report": content, "format": fmt},
+    )
+    return {"success": True, "report_id": rid}
 
 
 # ====== 报告管理 ======

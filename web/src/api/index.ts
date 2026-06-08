@@ -18,6 +18,7 @@ export const api = {
 
   // 大盘
   marketReview: () => request<any>('/market/review'),
+  economicCalendar: (days = 90) => request<any>(`/market/economic-calendar?days=${days}`),
 
   // 持仓
   getPortfolio: () => request<any>('/portfolio'),
@@ -86,4 +87,15 @@ export const api = {
   stockPatterns: (code: string) => request<any>(`/stocks/${encodeURIComponent(code)}/patterns`),
   // 财报日历
   stockEarnings: (code: string) => request<any>(`/stocks/${encodeURIComponent(code)}/earnings`),
+  // 回测报告
+  backtestReport: (code: string, strategy: string, format = 'markdown', startDate?: string, endDate?: string) =>
+    request<any>('/backtest/report', {
+      method: 'POST',
+      body: JSON.stringify({ code, strategy, format, start_date: startDate, end_date: endDate }),
+    }),
+  saveBacktestReport: (code: string, content: string, format = 'markdown') =>
+    request<any>('/backtest/report/save', {
+      method: 'POST',
+      body: JSON.stringify({ code, content, format }),
+    }),
 };

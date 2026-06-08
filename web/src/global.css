@@ -1,68 +1,104 @@
-/* === StockWatcher — 白底红橙主题 + 微交互动画 === */
+/* === StockWatcher — refined design tokens === */
+/* Applied: taste-skill (Section 4.2 color calibration, 4.1 typography, 4.4 shape consistency) */
 
 :root {
-  /* 红橙渐变主色系 */
-  --red-orange-1: #fff5f0;
-  --red-orange-2: #ffe8d6;
-  --red-orange-3: #ffcfb3;
-  --red-orange-4: #ffad85;
-  --red-orange-5: #ff8552;
-  --red-orange-6: #f5642a;
-  --red-orange-7: #d94d1a;
-  --red-orange-8: #b03a10;
-  --red-orange-9: #8a2c0a;
-
-  /* 语义色 */
+  /* Single accent: Burnt Orange */
   --primary: #f5642a;
   --primary-dark: #d94d1a;
-  --accent: #ff8552;
+  --primary-light: #fff5f0;
+  --primary-border: rgba(245, 100, 42, 0.2);
+
+  /* Semantic — unified red/green */
   --up: #e53935;
   --down: #43a047;
-  --warning: #f9a825;
-  --info: #1e88e5;
+  --warning: #f59e0b;
+  --info: #2563eb;
 
-  /* 背景 */
+  /* Neutral scale (cool grey, single family) */
+  --gray-50: #f8fafc;
+  --gray-100: #f1f5f9;
+  --gray-200: #e2e8f0;
+  --gray-300: #cbd5e1;
+  --gray-400: #94a3b8;
+  --gray-500: #64748b;
+  --gray-600: #475569;
+  --gray-700: #334155;
+  --gray-800: #1e293b;
+  --gray-900: #0f172a;
+
+  /* Backgrounds */
   --bg-primary: #ffffff;
-  --bg-elevated: #fafafa;
+  --bg-elevated: var(--gray-50);
   --bg-card: #ffffff;
-  --bg-sider: #fafafa;
-  --bg-hover: #fff5f0;
+  --bg-sider: var(--gray-50);
+  --bg-hover: var(--primary-light);
 
-  /* 文本 */
-  --text-primary: #1a1a2e;
-  --text-secondary: #64748b;
-  --text-muted: #94a3b8;
+  /* Text */
+  --text-primary: var(--gray-900);
+  --text-secondary: var(--gray-500);
+  --text-muted: var(--gray-400);
 
-  /* 边框 */
+  /* Borders — single style */
+  --border: var(--gray-200);
   --border-subtle: rgba(0, 0, 0, 0.06);
-  --border-accent: rgba(245, 100, 42, 0.25);
-  --border-hover: rgba(245, 100, 42, 0.4);
 
-  /* 阴影 */
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.04);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.06);
-  --shadow-lg: 0 8px 30px rgba(0, 0, 0, 0.08);
-  --shadow-glow: 0 2px 12px rgba(245, 100, 42, 0.2);
+  /* Shadows — tinted to background, no pure black */
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04);
+  --shadow-md: 0 4px 12px rgba(15, 23, 42, 0.06);
+  --shadow-lg: 0 8px 30px rgba(15, 23, 42, 0.08);
 
-  /* 字体 */
+  /* Typography */
   --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
   --font-mono: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
 
-  /* 圆角 */
+  /* Radii — single system */
   --radius-sm: 6px;
   --radius-md: 10px;
   --radius-lg: 14px;
 }
 
-
 /* =============================================
-   主题色 Loading 文字动效
+   Loading animation — restrained, not flashy
    ============================================= */
-@keyframes loading-text-pulse {
-  0%, 100% { color: var(--primary); opacity: 0.5; }
-  50% { color: var(--accent); opacity: 1; }
+@keyframes loading-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.8; }
 }
 .loading-text {
-  animation: loading-text-pulse 1.6s ease-in-out infinite;
+  animation: loading-pulse 1.6s ease-in-out infinite;
   font-weight: 500;
+}
+
+/* =============================================
+   Card — consistent base style
+   ============================================= */
+.card-default {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-card);
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow 0.2s ease;
+}
+.card-default:hover {
+  box-shadow: var(--shadow-md);
+}
+
+/* =============================================
+   Stat card — compact data display
+   ============================================= */
+.stat-card .ant-statistic-title {
+  margin-bottom: 0 !important;
+  font-size: 12px !important;
+}
+.stat-card .ant-card-body {
+  padding: 10px 14px !important;
+}
+
+/* =============================================
+   Glass card (deprecated — use card-default)
+   ============================================= */
+.glass-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-card);
 }

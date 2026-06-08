@@ -244,7 +244,7 @@ class MarketReviewer:
         """执行大盘复盘"""
         result = MarketReviewResult()
         result.indices = await self.fetch_indices()
-        result.top_sectors, result.fall_sectors = await self.fetch_sectors()
+        result.top_sectors, result.fall_sectors = await self.fetch_sectors(top=50)
         result.northbound = await self.fetch_northbound()
 
         # 生成摘要
