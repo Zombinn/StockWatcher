@@ -1,24 +1,21 @@
 import { useState, useEffect } from 'react';
-import { Card, Button, Table, Tag, Alert, Modal, Select, InputNumber, Space, Statistic, Row, Col, Spin, Empty, Typography } from 'antd';
+import { Card, Button, Table, Tag, Alert, Modal, Select, InputNumber, Space, Statistic, Row, Col, Spin, Empty, Typography, message, Input } from 'antd';
 import { ReloadOutlined, PlusOutlined, DeleteOutlined, CheckOutlined, BellOutlined } from '@ant-design/icons';
 import { api } from '../api';
-import SymbolSelect from '../components/SymbolSelect';
 
 const { Text } = Typography;
 
-const ruleTypes = [
-  { value: 'price_above', label: '价格上穿' },
-  { value: 'price_below', label: '价格下穿' },
-  { value: 'change_pct', label: '涨跌幅' },
-  { value: 'volume', label: '成交量(万手)' },
-];
+
+const RULE_TYPE_LABELS: Record<string, string> = {
+  price_above: '价格上穿', price_below: '价格下穿', change_pct: '涨跌幅(%)', volume: '成交量(万手)',
+};
 
 export default function AlertsPage() {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<any>(null);
   const [error, setError] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
-  const [form, setForm] = useState({ code: '', rule_type: 'price_above', threshold: 0 });
+  const [form, setForm] = useState<{ code: string; price_above?: number; price_below?: number; change_pct?: number; volume?: number }>({ code: "" });
 
   const load = async () => {
     setLoading(true); setError('');
@@ -30,8 +27,21 @@ export default function AlertsPage() {
   useEffect(() => { load(); }, []);
 
   const add = async () => {
-    await api.addAlert(form.code, form.rule_type, form.threshold, form.code);
-    setModalOpen(false); setForm({ code: '', rule_type: 'price_above', threshold: 0 }); load();
+    const code = form.code.trim();
+    if (!code) { message.warning('请输入股票代码'); return; }
+    const dims: { t: string; v: number | undefined }[] = [
+      { t: 'price_above', v: form.price_above },
+      { t: 'price_below', v: form.price_below },
+      { t: 'change_pct', v: form.change_pct },
+      { t: 'volume', v: form.volume },
+    ];
+    let count = 0;
+    for (const d of dims) {
+      if (d.v != null) { await api.addAlert(code, d.t, d.v, code); count++; }
+    }
+    setModalOpen(false); setForm({ code: '' });
+    message.success(`已保存 ${code} 的 ${count || 0} 个告警维度`);
+    load();
   };
 
   const remove = async (id: string) => { await api.removeAlert(id); load(); };
@@ -42,20 +52,40 @@ export default function AlertsPage() {
   };
 
   const ruleColumns = [
-    { title: '代码', dataIndex: 'code', width: 90 },
-    { title: '类型', dataIndex: 'rule_type', width: 110,
-      render: (v: string) => <Tag style={{ borderRadius: 4, border: 'none', color: '#f5642a', background: 'rgba(245,100,42,0.08)' }}>{ruleTypes.find(r => r.value === v)?.label || v}</Tag>,
+    { title: '代码', dataIndex: 'code', width: 90,
+      render: (v: string) => <Text strong style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13 }}>{v}</Text>,
     },
-    { title: '阈值', dataIndex: 'threshold', width: 90, align: 'right' as const,
-      render: (v: number) => <span style={{ fontWeight: 500, fontFamily: "'JetBrains Mono', monospace", color: '#1a1a2e' }}>{v}</span>,
+    { title: '名称', dataIndex: 'name', width: 100,
+      render: (v: string) => <Text style={{ color: '#64748b' }}>{v || '-'}</Text>,
     },
-    { title: '状态', dataIndex: 'enabled', width: 70,
-      render: (v: boolean) => <Tag color={v ? 'success' : 'default'} style={{ borderRadius: 4 }}>{v ? '启用' : '停用'}</Tag>,
+    { title: '上穿', dataIndex: 'price_above', width: 80, align: 'right' as const,
+      render: (v: number | null) => v != null ? <span style={{ fontWeight: 500, color: '#e53935' }}>{v}</span> : <Text type="secondary">-</Text>,
+    },
+    { title: '下穿', dataIndex: 'price_below', width: 80, align: 'right' as const,
+      render: (v: number | null) => v != null ? <span style={{ fontWeight: 500, color: '#43a047' }}>{v}</span> : <Text type="secondary">-</Text>,
+    },
+    { title: '涨跌%', dataIndex: 'change_pct', width: 80, align: 'right' as const,
+      render: (v: number | null) => v != null ? <span style={{ fontWeight: 500, color: '#f9a825' }}>{v}%</span> : <Text type="secondary">-</Text>,
+    },
+    { title: '成交(万手)', dataIndex: 'volume', width: 95, align: 'right' as const,
+      render: (v: number | null) => v != null ? <span style={{ fontWeight: 500 }}>{v}</span> : <Text type="secondary">-</Text>,
     },
     { title: '操作', width: 70,
-      render: (_: any, r: any) => <Button danger size="small" icon={<DeleteOutlined />} onClick={() => remove(r.id)} />,
+      render: (_: any, r: any) => <Button danger size="small" icon={<DeleteOutlined />} onClick={() => remove(r.code)} />,
     },
   ];
+
+  // Merge multi-type rules into code-keyed rows
+  const groupedRules = (data?.rules || []).reduce((acc: any[], r: any) => {
+    const existing = acc.find(x => x.code === r.code);
+    if (existing) {
+      existing[r.rule_type] = r.threshold;
+    } else {
+      acc.push({ code: r.code, name: r.name, price_above: null, price_below: null, change_pct: null, volume: null, enabled: r.enabled, id: r.code });
+      acc[acc.length - 1][r.rule_type] = r.threshold;
+    }
+    return acc;
+  }, []);
 
   return (
     <div>
@@ -91,7 +121,20 @@ export default function AlertsPage() {
           )}
           <Card className="glass-card" title={<span style={{ fontSize: 15, fontWeight: 600 }}>告警规则</span>} style={{ marginBottom: 16 }}>
             {data.rules?.length > 0 ? (
-              <Table dataSource={data.rules} columns={ruleColumns} rowKey="id" pagination={false} size="small" />
+              <Table dataSource={groupedRules} columns={ruleColumns} rowKey="code" pagination={false} size="small"
+                onRow={(record: any) => ({
+                  style: { cursor: 'pointer' },
+                  onClick: () => {
+                    setForm({
+                      code: record.code,
+                      price_above: record.price_above ?? undefined,
+                      price_below: record.price_below ?? undefined,
+                      change_pct: record.change_pct ?? undefined,
+                      volume: record.volume ?? undefined,
+                    });
+                    setModalOpen(true);
+                  },
+                })} />
             ) : <Empty description="暂无告警规则" />}
           </Card>
           <Card className="glass-card" title={<span style={{ fontSize: 15, fontWeight: 600 }}><BellOutlined style={{ marginRight: 6, color: '#f5642a' }} />最近事件</span>}>
@@ -118,13 +161,27 @@ export default function AlertsPage() {
         <Card className="glass-card"><Empty description="暂无数据" /></Card>
       )}
 
-      <Modal title="添加告警规则" open={modalOpen} onOk={add} onCancel={() => setModalOpen(false)}
-        okText="添加" cancelText="取消">
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 8 }}>
-          <SymbolSelect value={form.code} onChange={v => setForm({ ...form, code: v })} />
-          <Select value={form.rule_type} onChange={v => setForm({ ...form, rule_type: v })} options={ruleTypes} />
-          <InputNumber placeholder="阈值" value={form.threshold} min={0} step={0.1}
-            onChange={v => setForm({ ...form, threshold: v || 0 })} style={{ width: '100%' }} />
+      <Modal title={<>添加告警规则 - {form.code || '输入代码'}</>} open={modalOpen}
+        onOk={add} onCancel={() => { setModalOpen(false); setForm({ code: '' }); }}
+        okText="保存" cancelText="取消" width={460}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 8 }}>
+          <div>
+            <div style={{ fontSize: 12, color: '#64748b', marginBottom: 4 }}>股票代码</div>
+            <Input placeholder="输入股票代码，如 600519 / AAPL / 0700.HK"
+              value={form.code} onChange={e => setForm({ ...form, code: e.target.value })} />
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            {(['price_above', 'price_below', 'change_pct', 'volume'] as const).map(key => (
+              <div key={key}>
+                <div style={{ fontSize: 12, color: '#64748b', marginBottom: 4 }}>{RULE_TYPE_LABELS[key]}</div>
+                <InputNumber placeholder="不填" style={{ width: '100%' }} min={0}
+                  step={key === 'volume' ? 1 : key === 'price_above' || key === 'price_below' ? 0.01 : 0.1}
+                  value={form[key] ?? null}
+                  onChange={v => setForm({ ...form, [key]: v ?? undefined })} />
+              </div>
+            ))}
+          </div>
+          <Text type="secondary" style={{ fontSize: 11 }}>同股票四个维度可选填，至少填一个。不填则无此维度的告警。</Text>
         </div>
       </Modal>
     </div>

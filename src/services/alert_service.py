@@ -18,12 +18,14 @@ ALERT_FILE = "data/alerts.json"
 
 @dataclass
 class AlertRule:
-    """告警规则"""
+    """告警规则（单股票一条记录，四个维度字段）"""
     id: str = ""
     code: str = ""
     name: str = ""
-    rule_type: str = ""  # price_above, price_below, change_pct, volume, rsi, macd
-    threshold: float = 0.0
+    price_above: Optional[float] = None
+    price_below: Optional[float] = None
+    change_pct: Optional[float] = None
+    volume: Optional[float] = None
     enabled: bool = True
     last_triggered: Optional[str] = None
     cooldown_minutes: int = 60
@@ -75,22 +77,25 @@ class AlertEngine:
         }
         path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
 
-    def add_rule(self, code: str, rule_type: str, threshold: float, name: str = "") -> str:
-        """添加告警规则"""
-        rule = AlertRule(
-            id=f"{code}_{rule_type}_{datetime.now().timestamp():.0f}",
-            code=code, name=name,
-            rule_type=rule_type, threshold=threshold,
-        )
-        self._rules.append(rule)
+    def set_rule_dimension(self, code: str, rule_type: str, threshold: float, name: str = "") -> str:
+        """设置股票某个维度的告警阈值（upsert，单股票一条记录）"""
+        existing = next((r for r in self._rules if r.code == code), None)
+        if existing:
+            setattr(existing, rule_type, threshold)
+            existing.name = name or existing.name
+            logger.info("更新 %s %s=%s", code, rule_type, threshold)
+        else:
+            rule = AlertRule(id=code, code=code, name=name or code)
+            setattr(rule, rule_type, threshold)
+            self._rules.append(rule)
+            logger.info("添加 %s %s=%s", code, rule_type, threshold)
         self._save()
-        logger.info("添加告警规则: %s %s %s > %s", code, rule_type, threshold)
-        return rule.id
+        return code
 
     def remove_rule(self, rule_id: str) -> bool:
-        """删除告警规则"""
-        for r in self._rules:
-            if r.id == rule_id:
+        """删除告警规则（按 code 删除整条记录）"""
+        for r in list(self._rules):
+            if r.code == rule_id or r.id == rule_id:
                 self._rules.remove(r)
                 self._save()
                 return True
@@ -146,28 +151,18 @@ class AlertEngine:
         return triggered
 
     def _evaluate(self, rule: AlertRule, quote) -> tuple[bool, float, str]:
-        """评估单条规则"""
-        value_map = {
-            "price_above": ("价格上穿", quote.price, rule.threshold),
-            "price_below": ("价格下穿", quote.price, rule.threshold),
-            "change_pct": ("涨跌幅", abs(quote.change_pct), rule.threshold),
-            "volume": ("成交量", quote.volume / 1e4, rule.threshold),  # 万股
-        }
-
-        label, current, threshold = value_map.get(rule.rule_type, ("", 0.0, 0.0))
-        triggered = False
-
-        if rule.rule_type == "price_above" and current >= threshold:
-            triggered = True
-        elif rule.rule_type == "price_below" and current <= threshold:
-            triggered = True
-        elif rule.rule_type == "change_pct" and current >= threshold:
-            triggered = True
-        elif rule.rule_type == "volume" and current >= threshold:
-            triggered = True
-
-        msg = f"[{rule.name or rule.code}] {label}触发: 当前{current:.2f} 阈值{threshold:.2f}" if triggered else ""
-        return triggered, current, msg
+        """评估规则所有维度"""
+        checks = [
+            ("price_above", "价格上穿", quote.price, rule.price_above, lambda c, t: c >= t),
+            ("price_below", "价格下穿", quote.price, rule.price_below, lambda c, t: c <= t),
+            ("change_pct", "涨跌幅", abs(quote.change_pct), rule.change_pct, lambda c, t: c >= t),
+            ("volume", "成交量(万手)", quote.volume / 1e4, rule.volume, lambda c, t: c >= t),
+        ]
+        for rtype, label, current, threshold, cond in checks:
+            if threshold is not None and cond(current, threshold):
+                msg = f"[{rule.name or rule.code}] {label}触发: 当前{current:.2f} 阈值{threshold:.2f}"
+                return True, current, msg
+        return False, 0.0, ""
 
     def get_recent_events(self, limit: int = 20) -> List[AlertEvent]:
         """获取最近告警事件"""
@@ -177,7 +172,7 @@ class AlertEngine:
     def get_stats(self) -> Dict[str, Any]:
         """获取告警统计"""
         return {
-            "total_rules": len(self._rules),
+            "total_rules": len(set(r.code for r in self._rules)),
             "enabled_rules": len([r for r in self._rules if r.enabled]),
             "total_events": len(self._events),
             "recent_events": len([e for e in self._events if not e.notified]),

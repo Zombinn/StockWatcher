@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import {
-  Card, Button, Row, Col, Statistic, Table, Tag, Alert, Select, Space, Typography, Empty, Modal, message,
+  Card, Button, Row, Col, Statistic, Table, Tag, Alert, Select, Space, Typography, Empty, Modal, message, InputNumber,
 } from 'antd';
 import {
   ExperimentOutlined, RiseOutlined, FallOutlined, QuestionCircleOutlined,
@@ -25,6 +25,7 @@ export default function BacktestPage() {
   const [reportLoading, setReportLoading] = useState(false);
   const [data, setData] = useState<any>(null);
   const [error, setError] = useState('');
+  const [params, setParams] = useState({ capital: 100000, commission: 0.03, slippage: 0.1 });
   const [helpOpen, setHelpOpen] = useState(false);
   const [reportPreview, setReportPreview] = useState<string | null>(null);
   const [reportFormat, setReportFormat] = useState<string>('markdown');
@@ -33,7 +34,7 @@ export default function BacktestPage() {
     const c = autoCode || code;
     if (!c) { setError('请输入或选择股票代码'); return; }
     setLoading(true); setError(''); setReportPreview(null);
-    try { const d = await api.backtest(c, strategy); setData(d.data); }
+    try { const d = await api.backtest(c, strategy, undefined, undefined, params.capital, params.commission / 100, params.slippage / 100); setData(d.data); }
     catch (e: any) { setError(e.message); }
     finally { setLoading(false); }
   };
@@ -104,6 +105,30 @@ export default function BacktestPage() {
           </Space>
           <Button type="primary" icon={<ExperimentOutlined />} loading={loading} onClick={() => run()}>回测</Button>
         </Space>
+      </Card>
+
+      {/* 参数面板 */}
+      <Card className="glass-card" size="small" style={{ marginBottom: 20 }} bodyStyle={{ padding: '10px 14px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
+          <div>
+            <Text type="secondary" style={{ fontSize: 11 }}>初始资金</Text>
+            <InputNumber size="small" value={params.capital} min={10000} max={1e7} step={10000}
+              onChange={v => setParams({ ...params, capital: v || 100000 })}
+              style={{ width: 120 }} formatter={v => `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')} />
+          </div>
+          <div>
+            <Text type="secondary" style={{ fontSize: 11 }}>佣金费率</Text>
+            <InputNumber size="small" value={params.commission} min={0} max={1} step={0.01}
+              onChange={v => setParams({ ...params, commission: v ?? 0.03 })}
+              style={{ width: 100 }} addonAfter="%" />
+          </div>
+          <div>
+            <Text type="secondary" style={{ fontSize: 11 }}>滑点</Text>
+            <InputNumber size="small" value={params.slippage} min={0} max={1} step={0.01}
+              onChange={v => setParams({ ...params, slippage: v ?? 0.1 })}
+              style={{ width: 100 }} addonAfter="%" />
+          </div>
+        </div>
       </Card>
 
       {error && <Alert type="error" message={error} showIcon style={{ marginBottom: 16 }} closable onClose={() => setError('')} />}

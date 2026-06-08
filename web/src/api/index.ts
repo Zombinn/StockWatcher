@@ -69,8 +69,15 @@ export const api = {
     request<any>(`/agent/chat?session_id=${sessionId}&message=${encodeURIComponent(message)}${strategy ? `&strategy=${strategy}` : ''}`, { method: 'POST' }),
 
   // 回测
-  backtest: (code: string, strategy?: string, startDate?: string, endDate?: string) =>
-    request<any>(`/backtest?code=${code}&strategy=${strategy || 'ma_cross'}${startDate ? `&start_date=${startDate}` : ''}${endDate ? `&end_date=${endDate}` : ''}`),
+  backtest: (code: string, strategy?: string, startDate?: string, endDate?: string, capital?: number, commission?: number, slippage?: number) => {
+    let url = `/backtest?code=${code}&strategy=${strategy || 'ma_cross'}`;
+    if (startDate) url += `&start_date=${startDate}`;
+    if (endDate) url += `&end_date=${endDate}`;
+    if (capital) url += `&initial_capital=${capital}`;
+    if (commission != null) url += `&commission_rate=${commission}`;
+    if (slippage != null) url += `&slippage=${slippage}`;
+    return request<any>(url);
+  },
 
   // 配置
   getConfigSections: () => request<any>('/config/sections'),

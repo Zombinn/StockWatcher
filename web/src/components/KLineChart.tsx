@@ -39,10 +39,11 @@ export default function KLineChart({ code }: Props) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [tooltip, setTooltip] = useState<{ x: number; item: KLineItem; idx: number } | null>(null);
+
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const itemsRef = useRef<KLineItem[]>([]);
-  itemsRef.current = items;
+    itemsRef.current = items;
 
   useEffect(() => {
     if (!code) return;
@@ -62,7 +63,7 @@ export default function KLineChart({ code }: Props) {
     drawChart(canvas, items, tooltip);
   }, [items, tooltip]);
 
-  const handleMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+const handleMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
     const items = itemsRef.current;
     if (!canvas || items.length === 0) return;
@@ -92,12 +93,14 @@ export default function KLineChart({ code }: Props) {
           size="small"
         />
       </div>
+
       <div ref={containerRef} style={{ position: 'relative' }}>
         <canvas
           ref={canvasRef}
+
           onMouseMove={handleMouseMove}
           onMouseLeave={handleMouseLeave}
-          style={{ width: '100%', height: 'auto', display: 'block', cursor: 'crosshair' }}
+          style={{ width: '100%', height: 'auto', display: 'block', cursor: "default" }}
         />
         {tooltip && (
           <div style={{
@@ -261,6 +264,7 @@ function drawChart(canvas: HTMLCanvasElement, items: KLineItem[], tooltip: { idx
     ctx.strokeRect(x - candleW / 2 - 1.5, topY - 1, candleW + 3, botY - topY + 2);
   }
 
+
   ctx.textAlign = 'center';
   ctx.fillStyle = '#94a3b8';
   ctx.font = '9px system-ui';
@@ -270,6 +274,8 @@ function drawChart(canvas: HTMLCanvasElement, items: KLineItem[], tooltip: { idx
     ctx.fillText(items[i].date.slice(5, 10).replace('-', '/'), x, CHART_H + L.volH + 16);
   }
 }
+
+
 
 function formatVol(v: number): string {
   if (v >= 1e8) return `${(v / 1e8).toFixed(1)}亿`;

@@ -35,8 +35,8 @@ def get_agent():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("StockWatcher API 启动")
-    # TimesFM 在后台线程预加载，不阻塞服务启动
     import asyncio as _aio
+    
     async def _warmup_timesfm():
         try:
             from src.utils.blocking import run_blocking
@@ -45,7 +45,23 @@ async def lifespan(app: FastAPI):
             logger.info("TimesFM 模型预加载完成")
         except Exception as e:
             logger.warning("TimesFM 预加载失败（不影响其他功能）: %s", e)
+    
+    async def _alert_checker():
+        while True:
+            await _aio.sleep(600)
+            try:
+                from src.services.alert_service import AlertEngine
+                engine = AlertEngine()
+                if not engine.get_rules():
+                    continue
+                triggered = await engine.check()
+                if triggered:
+                    logger.info("告警自动检查: %d 条触发", len(triggered))
+            except Exception as e:
+                logger.debug("告警检查异常: %s", e)
+    
     _aio.create_task(_warmup_timesfm())
+    _aio.create_task(_alert_checker())
     yield
     logger.info("StockWatcher API 关闭")
 
@@ -641,7 +657,7 @@ async def get_alerts():
 async def add_alert(code: str = Query(...), rule_type: str = Query(...), threshold: float = Query(...), name: str = ""):
     from src.services.alert_service import AlertEngine
     engine = AlertEngine()
-    rule_id = engine.add_rule(code, rule_type, threshold, name)
+    rule_id = engine.set_rule_dimension(code, rule_type, threshold, name)
     return {"success": True, "rule_id": rule_id}
 
 
@@ -684,14 +700,16 @@ async def agent_chat(session_id: str = Query(...), message: str = Query(...), st
 
 # ====== 回测 ======
 @app.get("/api/v1/backtest")
-async def backtest(code: str = Query(...), strategy: str = Query("ma_cross"), start_date: str = "", end_date: str = ""):
+async def backtest(code: str = Query(...), strategy: str = Query("ma_cross"), start_date: str = "", end_date: str = "",
+                   initial_capital: float = Query(100000), commission_rate: float = Query(0.0003), slippage: float = Query(0.001)):
     from src.core.backtest_engine import BacktestEngine
-    engine = BacktestEngine()
+    engine = BacktestEngine(initial_capital=initial_capital, commission_rate=commission_rate, slippage=slippage)
     result = await engine.run(code, strategy, start_date, end_date)
     return {
         "success": True,
         "data": {
             "code": result.code, "initial_capital": result.initial_capital,
+            "commission_rate": result.commission_rate, "slippage": result.slippage,
             "final_value": result.final_value, "total_return": result.total_return,
             "total_return_pct": result.total_return_pct,
             "annual_return": result.annual_return, "max_drawdown": result.max_drawdown,

@@ -25,6 +25,7 @@ class TradeRecord:
     shares: int
     amount: float
     reason: str = ""
+    commission: float = 0.0
 
 
 @dataclass
@@ -33,6 +34,8 @@ class BacktestResult:
     code: str
     name: str = ""
     initial_capital: float = 100000.0
+    commission_rate: float = 0.0003  # 佣金费率
+    slippage: float = 0.001  # 滑点比例
     final_value: float = 100000.0
     total_return: float = 0.0
     total_return_pct: float = 0.0
@@ -52,8 +55,10 @@ class BacktestResult:
 class BacktestEngine:
     """回测引擎 - 支持自定义策略"""
 
-    def __init__(self, initial_capital: float = 100000.0):
+    def __init__(self, initial_capital: float = 100000.0, commission_rate: float = 0.0003, slippage: float = 0.001):
         self.initial_capital = initial_capital
+        self.commission_rate = commission_rate
+        self.slippage = slippage
         self.analyzer = StockAnalyzer()
 
     async def run(
@@ -79,6 +84,8 @@ class BacktestEngine:
         result = BacktestResult(
             code=code,
             initial_capital=self.initial_capital,
+            commission_rate=self.commission_rate,
+            slippage=self.slippage,
             start_date=klines[0].date if klines else "",
             end_date=klines[-1].date if klines else "",
         )
