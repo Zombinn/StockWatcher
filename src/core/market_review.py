@@ -130,7 +130,9 @@ class MarketReviewer:
         return await self._fetch_indices_sina(market)
 
     async def _fetch_indices_sina(self, market: str = "cn") -> List[IndexData]:
-        """新浪指数源（东方财富不可达时降级，不依赖 eastmoney）"""
+        """新浪指数源"""
+        if market != "cn":
+            return await self._fetch_global_indices(market)
         def _run() -> List[IndexData]:
             try:
                 import akshare as ak
@@ -167,6 +169,33 @@ class MarketReviewer:
         except Exception as e:
             logger.warning("新浪板块获取失败: %s", e)
         return [], []
+
+    async def _fetch_global_indices(self, market: str) -> List[IndexData]:
+        """Yahoo Finance 获取港股/美股指数"""
+        symbols = {"hk": [("恒生指数", "^HSI")], "us": [("道琼斯", "^DJI"), ("纳斯达克", "^IXIC"), ("标普500", "^GSPC")]} 
+        entries = symbols.get(market, [])
+        if not entries:
+            return []
+        result = []
+        for display_name, sym in entries:
+            try:
+                url = f"https://query1.finance.yahoo.com/v8/finance/chart/{sym}?interval=1d&range=5d"
+                async with httpx.AsyncClient(timeout=10.0) as c:
+                    resp = await c.get(url, headers={"User-Agent": "Mozilla/5.0"})
+                    if resp.status_code != 200:
+                        continue
+                    data = resp.json()
+                    meta = data.get("chart", {}).get("result", [{}])[0].get("meta", {})
+                    price = meta.get("regularMarketPrice", 0) or 0
+                    quotes = data.get("chart", {}).get("result", [{}])[0].get("indicators", {}).get("quote", [{}])[0]
+                    closes = quotes.get("close", [])
+                    change_pct = 0.0
+                    if closes and len(closes) >= 2 and closes[-2]:
+                        change_pct = ((price - closes[-2]) / closes[-2]) * 100
+                    result.append(IndexData(name=display_name, code=sym, price=float(price), change_pct=round(change_pct, 2)))
+            except Exception:
+                pass
+        return result
 
     async def _fetch_sectors_sina(self, top: int = 10, market: str = "cn") -> tuple[List[SectorData], List[SectorData]]:
         """新浪行业板块源（东方财富不可达时降级）"""

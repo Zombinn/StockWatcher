@@ -3,7 +3,7 @@
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-基于 AI 的多市场（A 股/港股/美股）股票智能分析系统。提供技术分析、AI 解读、大盘复盘、量化选股、持仓管理、告警引擎、回测、Agent 问股等能力，支持 Web 仪表盘和多渠道推送。
+基于 AI 的多市场（A 股/港股/美股）股票智能分析系统。提供技术分析、AI 解读、大盘复盘、量化选股、持仓管理、告警引擎、回测、Agent 问股、形态识别、板块热力图、经济日历等能力，支持 Web 仪表盘和多渠道推送。
 
 ## ✨ 功能特性
 
@@ -25,17 +25,16 @@
 - **K 线图** — 近 60/120/250 天可切换，Canvas 手绘，鼠标跟随显示 OHLC + 成交量 + 涨跌幅
 
 ### 📊 大盘复盘
-- **指数行情** — 上证/深证/创业板/科创50/沪深300
-- **板块轮动** — 领涨/领跌板块排行（前10）
-- **板块热力图** — Grid 布局展示前30个板块涨跌幅，红涨绿跌颜色深浅表示幅度
-- **经济日历** — 美联储决议/非农/CPI/GDP 等关键事件，时间线排列，可按重要性筛选，点击查看详情
-- **北向资金** — 合计净流入监控
-- **自动降级** — 东方财富不可达时自动切新浪源
+- **指数行情** — A 股（上证/深证/创业板/科创50/沪深300）、港股（恒生指数 via Yahoo）、美股（道琼斯/纳斯达克/标普500 via Yahoo）
+- **市场切换** — A 股 / 港股 / 美股独立切换，指数和板块数据随市场联动
+- **板块轮动** — A 股领涨/领跌板块排行（新浪源），港股美股暂无板块数据
+- **板块热力图** — Grid 布局展示前 30 个板块涨跌幅，白色底色 + 红绿边框表示幅度
+- **经济日历** — 美联储决议/非农/CPI/GDP 等关键事件，时间线排列，可按重要性筛选，点击查看详情弹窗
 
 ### 🎯 量化选股（AlphaSift）
 - **多策略** — 强势突破 / 放量异动 / 超跌反弹 / 蓝筹精选 / 成长精选
 - **多市场** — A 股 / 港股 / 美股独立策略
-- **详情抽屉** — 点击候选股查看 K 线、预测、评分、趋势、信号
+- **详情抽屉** — 点击候选股查看 K 线（多周期 60/120/250 天 + 鼠标跟随）、形态识别（含新手说明）、财报日历（实际 EPS）、价格预测（TimesFM）
 - **批量操作** — 多选加入自选
 
 ### 💼 持仓管理
@@ -157,12 +156,21 @@ npm run dev
 | GET | `/api/v1/screen` | 智能选股 |
 | GET | `/api/v1/search/suggest` | 搜索建议 |
 | GET | `/api/v1/search/recommend` | 市场推荐 |
-| GET | `/api/v1/market/review` | 大盘复盘 |
+| GET | `/api/v1/market/review?market=cn` | 大盘复盘（支持 cn/hk/us 市场切换） |
 | GET | `/api/v1/market/trading-day` | 交易日判断 |
 | GET | `/api/v1/portfolio` | 持仓管理 |
 | GET/POST | `/api/v1/watchlist` | 自选股管理 |
-| POST | `/api/v1/agent/chat` | Agent 问股 |
+| POST | `/api/v1/agent/chat` | Agent 问股（多轮对话） |
 | GET | `/api/v1/backtest` | 回测 |
+| POST | `/api/v1/backtest/report` | 生成回测报告（Markdown/HTML） |
+| POST | `/api/v1/backtest/report/save` | 保存回测报告到报告列表 |
+| GET | `/api/v1/stocks/{code}/patterns` | 形态识别 |
+| GET | `/api/v1/stocks/{code}/earnings` | 财报日历 |
+| GET | `/api/v1/market/economic-calendar` | 经济日历 |
+| GET | `/api/v1/reports` | 报告列表（分页） |
+| GET | `/api/v1/reports/{rid}` | 报告详情 |
+| DELETE | `/api/v1/reports/{rid}` | 删除报告 |
+| POST | `/api/v1/reports/delete` | 批量删除报告 |
 | GET/POST | `/api/v1/config/*` | 配置管理 |
 
 ## 📁 项目结构

@@ -329,7 +329,7 @@ export default function HomePage() {
   };
 
   return (
-    <div style={{ maxWidth: 960 }}>
+    <div style={{ maxWidth: "100%" }}>
       {/* Title */}
       <div style={{ marginBottom: 16 }}>
         <Text strong style={{ fontSize: 20, color: '#1a1a2e', letterSpacing: '-0.3px' }}>StockWatcher 智能分析</Text>

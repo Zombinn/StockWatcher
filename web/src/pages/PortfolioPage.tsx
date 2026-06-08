@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Card, Button, Row, Col, Statistic, Table, Tag, Alert, Typography, Modal, Input, InputNumber, Space, Select, Empty, message } from 'antd';
-import { ReloadOutlined, PlusOutlined, WalletOutlined, RiseOutlined, FallOutlined, ImportOutlined } from '@ant-design/icons';
+import { ReloadOutlined, PlusOutlined, WalletOutlined, RiseOutlined, FallOutlined, ImportOutlined, FileTextOutlined } from '@ant-design/icons';
 import { api } from '../api';
 import { analysisApi } from '../api/analysisApi';
 import StockDetailDrawer from '../components/StockDetailDrawer';

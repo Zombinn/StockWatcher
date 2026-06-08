@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Card, Button, Table, Tag, Input, Space, Typography, Empty, Popconfirm, message } from 'antd';
-import { ReloadOutlined, PlusOutlined, StarOutlined, RiseOutlined, FallOutlined, DeleteOutlined } from '@ant-design/icons';
+import { ReloadOutlined, PlusOutlined, StarOutlined, RiseOutlined, FallOutlined, DeleteOutlined, FileTextOutlined } from '@ant-design/icons';
 import StockDetailDrawer from '../components/StockDetailDrawer';
 import { api } from '../api';
 import { analysisApi } from '../api/analysisApi';
@@ -86,6 +86,19 @@ export default function WatchlistPanel() {
           <Button size="small" type="text" icon={<ReloadOutlined />} loading={loading} onClick={load} />
         </Space>
       }>
+      <div style={{ marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: '#fafafa', borderRadius: 8, border: '1px solid rgba(0,0,0,0.06)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <FileTextOutlined style={{ color: '#f5642a' }} />
+          <Text style={{ fontSize: 13 }}>生成分析报告</Text>
+          <Text type="secondary" style={{ fontSize: 12 }}>基于自选股生成报告并保存到报告列表</Text>
+        </div>
+        <Button size="small" icon={<FileTextOutlined />} onClick={async () => {
+          try {
+            await api.analyze();
+            message.success('分析已触发，完成后自动保存报告');
+          } catch (e: any) { message.error(e.message); }
+        }}>生成报告</Button>
+      </div>
       {rows.length > 0 ? (
         <Table dataSource={rows} columns={columns} rowKey="code" pagination={false} size="small" loading={loading}
           scroll={{ x: 'max-content' }}
