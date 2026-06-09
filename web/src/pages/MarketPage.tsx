@@ -1,25 +1,18 @@
 import { useState, useEffect } from 'react';
 import {
-  Card, Button, Row, Col, Statistic, Spin, Tag, Alert, Typography, Space, Empty, Segmented, Tooltip, Modal,
+  Card, Button, Row, Col, Spin, Tag, Alert, Typography, Space, Empty, Segmented, Tooltip, Modal,
 } from 'antd';
 import { ReloadOutlined, CalendarOutlined, AppstoreOutlined, InfoCircleOutlined, RiseOutlined, FallOutlined, LineChartOutlined } from '@ant-design/icons';
 import { api } from '../api';
+import { MARKET_OPTIONS } from '../constants';
 
 const { Text } = Typography;
 
 // ====== 指数 ======
-
-function IndexSection({ market: mkt }: { market: string }) {
-  const [items, setItems] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  useEffect(() => {
-    setLoading(true);
-    api.marketReview(mkt).then(d => setItems(d.indices || [])).catch(() => {}).finally(() => setLoading(false));
-  }, [mkt]);
-  if (loading) return <Card className="glass-card" title={<><LineChartOutlined style={{marginRight:6}} />主要指数</>}><Spin /></Card>;
+function IndexSection({ indices }: { indices: any[] }) {
   return (
-    <Card className="glass-card" title={<><LineChartOutlined style={{marginRight:6}} />主要指数</>}>
-      {items.length > 0 ? items.map((i: any) => (
+    <Card className="glass-card" title={<><LineChartOutlined style={{ marginRight: 6 }} />主要指数</>}>
+      {indices.length > 0 ? indices.map((i: any) => (
         <div key={i.name} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
           <span>{i.name}</span>
           <span style={{ color: i.change_pct >= 0 ? '#e53935' : '#43a047', fontWeight: 600 }}>
@@ -32,17 +25,9 @@ function IndexSection({ market: mkt }: { market: string }) {
 }
 
 // ====== 领涨板块 ======
-
-function TopSectorsSection({ market }: { market: string }) {
-  const [items, setItems] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  useEffect(() => {
-    setLoading(true);
-    api.marketReview(market).then(d => setItems(d.top_sectors || [])).catch(() => {}).finally(() => setLoading(false));
-  }, [market]);
-  if (loading) return <Card className="glass-card" title={<><RiseOutlined style={{marginRight:6}} />领涨板块</>}><Spin /></Card>;
+function TopSectorsSection({ items }: { items: any[] }) {
   return (
-    <Card className="glass-card" title={<><RiseOutlined style={{marginRight:6}} />领涨板块</>}>
+    <Card className="glass-card" title={<><RiseOutlined style={{ marginRight: 6 }} />领涨板块</>}>
       {items.length > 0 ? items.slice(0, 10).map((s: any) => (
         <div key={s.name} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
           <span>{s.name}</span> <Tag color="red">+{s.change_pct}%</Tag>
@@ -53,17 +38,9 @@ function TopSectorsSection({ market }: { market: string }) {
 }
 
 // ====== 领跌板块 ======
-
-function FallSectorsSection({ market }: { market: string }) {
-  const [items, setItems] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  useEffect(() => {
-    setLoading(true);
-    api.marketReview(market).then(d => setItems(d.fall_sectors || [])).catch(() => {}).finally(() => setLoading(false));
-  }, [market]);
-  if (loading) return <Card className="glass-card" title={<><FallOutlined style={{marginRight:6}} />领跌板块</>}><Spin /></Card>;
+function FallSectorsSection({ items }: { items: any[] }) {
   return (
-    <Card className="glass-card" title={<><FallOutlined style={{marginRight:6}} />领跌板块</>}>
+    <Card className="glass-card" title={<><FallOutlined style={{ marginRight: 6 }} />领跌板块</>}>
       {items.length > 0 ? items.slice(0, 10).map((s: any) => (
         <div key={s.name} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
           <span>{s.name}</span> <Tag color="green">{s.change_pct}%</Tag>
@@ -74,16 +51,8 @@ function FallSectorsSection({ market }: { market: string }) {
 }
 
 // ====== 板块热力图 ======
-
-function SectorTreemap({ market }: { market: string }) {
-  const [items, setItems] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  useEffect(() => {
-    setLoading(true);
-    api.marketReview(market).then(d => setItems(d.all_sectors || [])).catch(() => {}).finally(() => setLoading(false));
-  }, [market]);
-  if (loading) return <Card title={<><AppstoreOutlined style={{marginRight:6}} />板块热力图</>}><Spin /></Card>;
-  if (items.length === 0) return <Card title={<><AppstoreOutlined style={{marginRight:6}} />板块热力图</>}><Empty description="暂无数据" /></Card>;
+function SectorTreemap({ items }: { items: any[] }) {
+  if (items.length === 0) return <Card title={<><AppstoreOutlined style={{ marginRight: 6 }} />板块热力图</>}><Empty description="暂无数据" /></Card>;
 
   const sorted = [...items].sort((a, b) => Math.abs(b.change_pct) - Math.abs(a.change_pct)).slice(0, 30);
   const maxAbs = Math.max(...sorted.map(s => Math.abs(s.change_pct)), 0.1);
@@ -126,8 +95,7 @@ function SectorTreemap({ market }: { market: string }) {
 }
 
 // ====== 经济日历 ======
-
-function EconomicCalendar({ market: _m }: { market: string }) {
+function EconomicCalendar() {
   const [events, setEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [detail, setDetail] = useState<any | null>(null);
@@ -144,7 +112,7 @@ function EconomicCalendar({ market: _m }: { market: string }) {
   const upcoming = filtered.filter(e => e.date >= today).slice(0, 10);
   const past = filtered.filter(e => e.date < today).slice(0, 5);
 
-  if (loading) return <Card title={<><CalendarOutlined style={{marginRight:6}} />经济日历</>}><Spin /></Card>;
+  if (loading) return <Card title={<><CalendarOutlined style={{ marginRight: 6 }} />经济日历</>}><Spin /></Card>;
 
   return (
     <Card
@@ -250,16 +218,27 @@ function EconomicCalendar({ market: _m }: { market: string }) {
 
 // ====== 主页面 ======
 
-const MARKET_OPTIONS = [
-  { value: 'cn', label: 'A 股' },
-  { value: 'hk', label: '港股' },
-  { value: 'us', label: '美股' },
-];
-
 export default function MarketPage() {
-  const [key, setKey] = useState(0);
   const [tab, setTab] = useState('overview');
   const [market, setMarket] = useState('cn');
+  const [marketData, setMarketData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  const load = () => {
+    setLoading(true); setError('');
+    api.marketReview(market)
+      .then(d => setMarketData(d))
+      .catch(() => setError('大盘数据加载失败'))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => { load(); }, [market]);
+
+  const indices = marketData?.indices || [];
+  const topSectors = marketData?.top_sectors || [];
+  const fallSectors = marketData?.fall_sectors || [];
+  const allSectors = marketData?.all_sectors || [];
 
   return (
     <div>
@@ -288,29 +267,31 @@ export default function MarketPage() {
             { label: '经济日历', value: 'calendar' },
           ]}
         />
-        <Button type="primary" icon={<ReloadOutlined />} onClick={() => setKey(k => k + 1)}>刷新</Button>
+        <Button type="primary" icon={<ReloadOutlined />} loading={loading} onClick={load}>刷新</Button>
       </div>
 
+      {error && <Alert type="error" message={error} showIcon closable onClose={() => setError('')} style={{ marginBottom: 16 }} />}
+
       {tab === 'overview' && (
-        <Row gutter={[16, 16]} key={key}>
-          <Col xs={24}>
-            <Row gutter={16}>
-              <Col xs={24} md={8}><IndexSection market={market} /></Col>
-              <Col xs={24} md={8}><TopSectorsSection market={market} /></Col>
-              <Col xs={24} md={8}><FallSectorsSection market={market} /></Col>
-            </Row>
-          </Col>
-          <Col span={24}>
-            <SectorTreemap market={market} />
-          </Col>
-        </Row>
+        loading ? (
+          <Card className="glass-card" bodyStyle={{ padding: 60, textAlign: 'center' }}><Spin /></Card>
+        ) : (
+          <Row gutter={[16, 16]}>
+            <Col xs={24}>
+              <Row gutter={16}>
+                <Col xs={24} md={8}><IndexSection indices={indices} /></Col>
+                <Col xs={24} md={8}><TopSectorsSection items={topSectors} /></Col>
+                <Col xs={24} md={8}><FallSectorsSection items={fallSectors} /></Col>
+              </Row>
+            </Col>
+            <Col span={24}>
+              <SectorTreemap items={allSectors} />
+            </Col>
+          </Row>
+        )
       )}
 
-      {tab === 'calendar' && (
-        <div key={`cal-${key}`}>
-          <EconomicCalendar market={market} />
-        </div>
-      )}
+      {tab === 'calendar' && <EconomicCalendar />}
     </div>
   );
 }

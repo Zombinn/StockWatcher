@@ -204,7 +204,7 @@ function AppInner() {
             const startW = agentWidth;
             const onMove = (ev: MouseEvent) => {
               const newW = startW - (ev.clientX - startX);
-              if (newW >= 320 && newW <= 600) setAgentWidth(newW);
+              if (newW >= 320 && newW <= 1000) setAgentWidth(newW);
             };
             const onUp = () => {
               document.removeEventListener('mousemove', onMove);

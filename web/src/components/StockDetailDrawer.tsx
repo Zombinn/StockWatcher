@@ -4,15 +4,11 @@ import {
   LineChartOutlined, StarOutlined, CheckOutlined,
 } from '@ant-design/icons';
 import { api } from '../api';
+import { SIGNAL_COLOR } from '../constants';
 import KLineChart from './KLineChart';
 import ForecastChart from './ForecastChart';
 
 const { Text } = Typography;
-
-const SIGNAL_COLOR: Record<string, string> = {
-  '强烈买入': '#e53935', '买入': '#f5642a', '持有': '#1e88e5',
-  '观望': '#94a3b8', '卖出': '#43a047', '强烈卖出': '#2e7d32',
-};
 
 const DIRECTION_COLOR: Record<string, string> = {
   bullish: '#e53935',
@@ -70,6 +66,19 @@ export default function StockDetailDrawer({ stock, inWatchlist, onClose, onAddTo
       .then(d => setEarnings(d.earnings || []))
       .catch(() => {})
       .finally(() => setEarningsLoading(false));
+  }, [s?.code]);
+
+  // --- 个股新闻 ---
+  const [news, setNews] = useState<any[]>([]);
+  const [newsLoading, setNewsLoading] = useState(false);
+
+  useEffect(() => {
+    if (!s?.code) return;
+    setNewsLoading(true);
+    api.stockNews(s.code, 8)
+      .then(d => setNews(d.data || []))
+      .catch(() => {})
+      .finally(() => setNewsLoading(false));
   }, [s?.code]);
 
   return (
@@ -234,52 +243,88 @@ export default function StockDetailDrawer({ stock, inWatchlist, onClose, onAddTo
             <Text type="secondary" style={{ fontSize: 13 }}>未识别到明显形态</Text>
           )}
 
-          {/* 财报日历 */}
-          <div style={{ marginTop: 20, marginBottom: 8 }}>
-            <Text strong style={{ fontSize: 14 }}>财报日历</Text>
-          </div>
-          {earningsLoading ? (
-            <div style={{ textAlign: 'center', padding: 20 }}><Spin size="small" /></div>
-          ) : earnings.length > 0 ? (
-            <div style={{ position: 'relative', paddingLeft: 20 }}>
-              {/* 时间线竖线 */}
-              <div style={{
-                position: 'absolute', left: 7, top: 4, bottom: 4, width: 2,
-                background: 'rgba(0,0,0,0.08)', borderRadius: 1,
-              }} />
-              {earnings.map((e: any, i: number) => (
-                <div key={e.quarter} style={{ position: 'relative', paddingBottom: 12, paddingLeft: 20 }}>
-                  {/* 时间线圆点 */}
+          {/* 财报日历 + 相关资讯 同行两列 */}
+          <div style={{ marginTop: 20, display: 'flex', gap: 16, alignItems: 'stretch' }}>
+
+            {/* 左：财报日历 */}
+            <div style={{ flex: '0 0 320px' }}>
+              <Text strong style={{ fontSize: 14, display: 'block', marginBottom: 8 }}>财报日历</Text>
+              {earningsLoading ? (
+                <div style={{ textAlign: 'center', padding: 20 }}><Spin size="small" /></div>
+              ) : earnings.length > 0 ? (
+                <div style={{ position: 'relative', paddingLeft: 20 }}>
                   <div style={{
-                    position: 'absolute', left: -13, top: 4, width: 10, height: 10,
-                    borderRadius: '50%', background: i === 0 ? '#f5642a' : '#d0d0d0',
-                    border: '2px solid #fff', boxShadow: '0 0 0 2px rgba(0,0,0,0.06)',
+                    position: 'absolute', left: 7, top: 4, bottom: 4, width: 2,
+                    background: 'rgba(0,0,0,0.08)', borderRadius: 1,
                   }} />
-                  <div style={{
-                    background: i === 0 ? 'rgba(245,100,42,0.04)' : '#fafafa',
-                    borderRadius: 8, padding: '8px 12px',
-                    border: i === 0 ? '1px solid rgba(245,100,42,0.15)' : '1px solid rgba(0,0,0,0.06)',
-                  }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <Text strong style={{ fontSize: 13 }}>{e.quarter}</Text>
-                      <Tag style={{ fontSize: 11 }}>{e.date}</Tag>
+                  {earnings.map((e: any, i: number) => (
+                    <div key={e.quarter} style={{ position: 'relative', paddingBottom: 12, paddingLeft: 20 }}>
+                      <div style={{
+                        position: 'absolute', left: -13, top: 4, width: 10, height: 10,
+                        borderRadius: '50%', background: i === 0 ? '#f5642a' : '#d0d0d0',
+                        border: '2px solid #fff', boxShadow: '0 0 0 2px rgba(0,0,0,0.06)',
+                      }} />
+                      <div style={{
+                        background: i === 0 ? 'rgba(245,100,42,0.04)' : '#fafafa',
+                        borderRadius: 8, padding: '8px 12px',
+                        border: i === 0 ? '1px solid rgba(245,100,42,0.15)' : '1px solid rgba(0,0,0,0.06)',
+                      }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <Text strong style={{ fontSize: 13 }}>{e.quarter}</Text>
+                          <Tag style={{ fontSize: 11 }}>{e.date}</Tag>
+                        </div>
+                        <div style={{ display: 'flex', gap: 16, marginTop: 4, fontSize: 12 }}>
+                          <span>
+                            <Text type="secondary">实际 EPS：</Text>
+                            <span style={{ fontWeight: 500 }}>{e.actual_eps != null ? e.actual_eps.toFixed(4) : '--'}</span>
+                          </span>
+                        </div>
+                      </div>
                     </div>
-                    <div style={{ display: 'flex', gap: 16, marginTop: 4, fontSize: 12 }}>
-                      <span>
-                        <span style={{ fontWeight: 500 }}>{e.actual_eps != null ? e.actual_eps.toFixed(4) : '--'}</span>
-                      </span>
-                      <span>
-                        <Text type="secondary">实际 EPS：</Text>
-                        <span style={{ fontWeight: 500 }}>{e.actual_eps != null ? e.actual_eps.toFixed(4) : '--'}</span>
-                      </span>
-                    </div>
-                  </div>
+                  ))}
                 </div>
-              ))}
+              ) : (
+                <Text type="secondary" style={{ fontSize: 13 }}>暂无财报数据</Text>
+              )}
             </div>
-          ) : (
-            <Text type="secondary" style={{ fontSize: 13 }}>暂无财报数据</Text>
-          )}
+
+            {/* 右：相关资讯（高度跟左侧对齐，内部可滚动） */}
+            <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+              <Text strong style={{ fontSize: 14, display: 'block', marginBottom: 8 }}>相关资讯</Text>
+              {newsLoading ? (
+                <div style={{ textAlign: 'center', padding: 20 }}><Spin size="small" /></div>
+              ) : news.length > 0 ? (
+                <div style={{
+                  flex: 1,
+                  overflowY: 'auto',
+                  maxHeight: 320,
+                  paddingRight: 4,
+                }}>
+                  {news.map((n: any, i: number) => (
+                    <div key={i} style={{
+                      padding: '8px 0',
+                      borderBottom: i < news.length - 1 ? '1px solid rgba(0,0,0,0.05)' : 'none',
+                    }}>
+                      <a href={n.url} target="_blank" rel="noopener noreferrer" style={{
+                        fontSize: 13, color: '#0f172a', fontWeight: 500, lineHeight: 1.5,
+                        textDecoration: 'none', display: 'block',
+                      }}
+                        onMouseEnter={e => (e.currentTarget.style.color = '#f5642a')}
+                        onMouseLeave={e => (e.currentTarget.style.color = '#0f172a')}
+                      >{n.title}</a>
+                      <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
+                        {n.source && <span>{n.source}</span>}
+                        {n.publish_time && <span style={{ marginLeft: n.source ? 8 : 0 }}>{n.publish_time}</span>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <Text type="secondary" style={{ fontSize: 13 }}>暂无相关资讯</Text>
+              )}
+            </div>
+
+          </div>
 
           {/* TimesFM 价格预测 */}
           <div style={{ marginTop: 20, marginBottom: 8 }}>

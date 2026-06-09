@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
-import { Card, Button, Select, Tag, Typography, Space, Row, Col, Alert, Empty, Table, Statistic, message } from 'antd';
-import { SearchOutlined, BarChartOutlined, RiseOutlined, FallOutlined, StarOutlined, CheckOutlined } from '@ant-design/icons';
+import { Card, Button, Select, Tag, Typography, Space, Row, Col, Alert, Empty, Table, message } from 'antd';
+import { SearchOutlined, BarChartOutlined, RiseOutlined, FallOutlined, StarOutlined } from '@ant-design/icons';
 import { api } from '../api';
+import { MARKET_OPTIONS, SIGNAL_COLOR } from '../constants';
+import { useWatchlist } from '../hooks/useWatchlist';
 import StockDetailDrawer from "../components/StockDetailDrawer";
-const { Text } = Typography;
 
+const { Text } = Typography;
 
 const MARKET_STRATEGIES: Record<string, { id: string; name: string; desc: string }[]> = {
   cn: [
@@ -21,10 +23,6 @@ const MARKET_STRATEGIES: Record<string, { id: string; name: string; desc: string
     { id: 'blue_chip',   name: '蓝筹精选', desc: '美股综合评分排序' },
     { id: 'growth',      name: '成长精选', desc: '按评分筛选潜力股' },
   ],
-};
-
-const SIGNAL_COLOR: Record<string, string> = {
-  买入: '#e53935', 强烈买入: '#f5642a', 持有: '#1e88e5', 观望: '#94a3b8', 卖出: '#43a047',
 };
 
 function StrategyCard({ s, active, onSelect }: { s: { id: string; name: string; desc: string }; active: boolean; onSelect: () => void }) {
@@ -50,18 +48,11 @@ export default function StockScreeningPage() {
   const [error, setError] = useState('');
   const [ran, setRan] = useState(false);
 
-  const [watchlistCodes, setWatchlistCodes] = useState<Set<string>>(new Set());
+  const { watchlistCodes, loadWatchlist } = useWatchlist();
   const [detailStock, setDetailStock] = useState<any>(null);
   const [addingToWl, setAddingToWl] = useState(false);
   const [selectedCodes, setSelectedCodes] = useState<string[]>([]);
   const [batchAdding, setBatchAdding] = useState(false);
-
-  const loadWatchlist = async () => {
-    try {
-      const r = await api.getWatchlist();
-      setWatchlistCodes(new Set((r.data || []).map((s: any) => s.code as string)));
-    } catch {}
-  };
 
   useEffect(() => { loadWatchlist(); }, []);
 
@@ -173,11 +164,7 @@ export default function StockScreeningPage() {
       <Card className="glass-card" bodyStyle={{ padding: '12px 16px' }} style={{ marginBottom: 16 }}>
         <Space wrap size={12}>
           <Select value={market} size="small" style={{ width: 90 }} onChange={v => { setMarket(v); setResults([]); setRan(false); setSelectedCodes([]); }}
-            options={[
-              { value: 'cn', label: '🇨🇳 A股' },
-              { value: 'hk', label: '🇭🇰 港股' },
-              { value: 'us', label: '🇺🇸 美股' },
-            ]} />
+            options={MARKET_OPTIONS} />
           <Button type="primary" icon={<SearchOutlined />} loading={loading} onClick={runScreen} size="small">
             开始筛选
           </Button>

@@ -20,6 +20,11 @@ interface KLineItem {
 
 const PERIOD_LABELS = ['近 60 天', '近 120 天', '近 250 天'];
 const PERIOD_COUNTS: Record<string, number> = { '近 60 天': 60, '近 120 天': 120, '近 250 天': 250 };
+const MA_CONFIGS = [
+  { period: 5,  color: '#f5642a' },
+  { period: 10, color: '#1e88e5' },
+  { period: 20, color: '#8e24aa' },
+] as const;
 const CHART_H = 260;
 const VOL_H = 72;
 const PAD = { top: 28, right: 16, bottom: 24, left: 56 };
@@ -85,7 +90,16 @@ const handleMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => 
 
   return (
     <Card className="glass-card" bodyStyle={{ padding: 0, overflow: 'visible' }}>
-      <div style={{ padding: '8px 12px 4px', display: 'flex', justifyContent: 'flex-end' }}>
+      <div style={{ padding: '8px 12px 4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        {/* MA 图例 */}
+        <Space size={12}>
+          {MA_CONFIGS.map(({ period: p, color }) => (
+            <span key={p} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#64748b' }}>
+              <span style={{ display: 'inline-block', width: 20, height: 2, background: color, borderRadius: 1 }} />
+              MA{p}
+            </span>
+          ))}
+        </Space>
         <Segmented
           value={period}
           onChange={(v) => setPeriod(v as string)}
@@ -154,11 +168,31 @@ const handleMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => 
                 {(tooltip.item.volume >= 1e8 ? (tooltip.item.volume / 1e8).toFixed(2) + '亿' : tooltip.item.volume >= 1e4 ? (tooltip.item.volume / 1e4).toFixed(0) + '万' : tooltip.item.volume.toFixed(0))}
               </span>
             </div>
+            <div style={{ borderTop: '1px solid rgba(0,0,0,0.06)', marginTop: 4, paddingTop: 4 }}>
+              {MA_CONFIGS.map(({ period: p, color }) => {
+                const maVals = computeMA(itemsRef.current, p);
+                const v = maVals[tooltip.idx];
+                return v !== null ? (
+                  <div key={p} style={{ display: 'flex', justifyContent: 'space-between', gap: 16 }}>
+                    <span style={{ color }}>MA{p}</span>
+                    <span style={{ fontWeight: 500 }}>{v.toFixed(2)}</span>
+                  </div>
+                ) : null;
+              })}
+            </div>
           </div>
         )}
       </div>
     </Card>
   );
+}
+
+function computeMA(items: KLineItem[], period: number): (number | null)[] {
+  return items.map((_, i) => {
+    if (i < period - 1) return null;
+    const sum = items.slice(i - period + 1, i + 1).reduce((a, b) => a + b.close, 0);
+    return sum / period;
+  });
 }
 
 function drawChart(canvas: HTMLCanvasElement, items: KLineItem[], tooltip: { idx: number } | null) {
@@ -244,6 +278,25 @@ function drawChart(canvas: HTMLCanvasElement, items: KLineItem[], tooltip: { idx
 
     ctx.fillStyle = isUp ? 'rgba(229,57,53,0.25)' : 'rgba(67,160,71,0.25)';
     ctx.fillRect(x, yVol(item.volume), candleW, L.volH - (yVol(item.volume) - L.volY));
+  }
+
+  // MA lines
+  for (const { period: maPeriod, color } of MA_CONFIGS) {
+    const maValues = computeMA(items, maPeriod);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1.2;
+    ctx.setLineDash([]);
+    ctx.beginPath();
+    let started = false;
+    for (let i = 0; i < n; i++) {
+      const v = maValues[i];
+      if (v === null) continue;
+      const x = PAD.left + (L.chartW * i / n) + candleW / 2;
+      const y = yPrice(v);
+      if (!started) { ctx.moveTo(x, y); started = true; }
+      else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
   }
 
   if (tooltip && tooltip.idx >= 0 && tooltip.idx < n) {

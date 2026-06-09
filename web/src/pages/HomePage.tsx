@@ -1,11 +1,13 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Card, Button, Input, Tag, Typography, Space, Row, Col, Spin, Alert, Empty, Divider, Select, message } from 'antd';
+import { Card, Button, Input, Tag, Typography, Space, Row, Col, Spin, Alert, Empty, Divider, message } from 'antd';
 import {
-  SearchOutlined, RobotOutlined, BarChartOutlined, LineChartOutlined,
+  SearchOutlined, RobotOutlined, BarChartOutlined,
   RiseOutlined, FallOutlined, ReloadOutlined, ThunderboltOutlined,
   SafetyOutlined, GlobalOutlined, StarOutlined, CheckOutlined,
 } from '@ant-design/icons';
 import { api } from '../api';
+import { MARKET_OPTIONS } from '../constants';
+import { useWatchlist } from '../hooks/useWatchlist';
 import { analysisApi, type StockCandidate } from '../api/analysisApi';
 
 const { Text } = Typography;
@@ -212,12 +214,6 @@ function StrategyPoints({ result }: { result: any }) {
 }
 
 /* ─────────── 主页面 ─────────── */
-const MARKET_OPTIONS = [
-  { value: 'cn', label: 'A 股' },
-  { value: 'hk', label: '港股' },
-  { value: 'us', label: '美股' },
-];
-
 export default function HomePage() {
   const [query, setQuery] = useState('');
   const [market, setMarket] = useState('cn');
@@ -230,16 +226,9 @@ export default function HomePage() {
   const [showDropdown, setShowDropdown] = useState(false);
   const [recommend, setRecommend] = useState<StockCandidate[]>([]);
   const [symbols, setSymbols] = useState<StockCandidate[]>([]);
-  const [watchlistCodes, setWatchlistCodes] = useState<Set<string>>(new Set());
+  const { watchlistCodes, loadWatchlist } = useWatchlist();
   const [addingToWl, setAddingToWl] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
-
-  const loadWatchlist = useCallback(async () => {
-    try {
-      const r = await api.getWatchlist();
-      setWatchlistCodes(new Set((r.data || []).map((s: any) => s.code as string)));
-    } catch {}
-  }, []);
 
   useEffect(() => {
     setMarketLoading(true);
@@ -247,8 +236,9 @@ export default function HomePage() {
       .then(d => setMarketData(d))
       .catch(() => {})
       .finally(() => setMarketLoading(false));
-    loadWatchlist();
   }, [market]);
+
+  useEffect(() => { loadWatchlist(); }, []);
 
   // Load recommendations when market changes
   useEffect(() => {

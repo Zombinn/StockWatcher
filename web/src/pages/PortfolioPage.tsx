@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Card, Button, Row, Col, Statistic, Table, Tag, Alert, Typography, Modal, Input, InputNumber, Space, Select, Empty, message } from 'antd';
-import { ReloadOutlined, PlusOutlined, WalletOutlined, RiseOutlined, FallOutlined, ImportOutlined, FileTextOutlined } from '@ant-design/icons';
+import { ReloadOutlined, PlusOutlined, WalletOutlined, RiseOutlined, FallOutlined, ImportOutlined } from '@ant-design/icons';
 import { api } from '../api';
-import { analysisApi } from '../api/analysisApi';
+import { useWatchlist } from '../hooks/useWatchlist';
 import StockDetailDrawer from '../components/StockDetailDrawer';
 import WatchlistPanel from './WatchlistPanel';
 
@@ -20,15 +20,15 @@ export default function PortfolioPage() {
   const [importText, setImportText] = useState('');
   const [importing, setImporting] = useState(false);
   const [detailStock, setDetailStock] = useState<any>(null);
-  const [watchlistCodes, setWatchlistCodes] = useState<Set<string>>(new Set());
+  const { watchlistCodes, loadWatchlist } = useWatchlist();
   const [filterMarket, setFilterMarket] = useState<string>('');
   const [form, setForm] = useState({ code: '', quantity: 100, cost_price: 0, market: '' });
 
   const load = async () => {
     setLoading(true); setError('');
     try { const d = await api.getPortfolio(); setData(d.data); } catch (e: any) { setError(e.message); }
-      try { const w = await api.getWatchlist(); setWatchlistCodes(new Set((w.data || []).map((x: any) => x.code))); } catch {}
-    finally { setLoading(false); }
+    await loadWatchlist();
+    setLoading(false);
   };
 
   useEffect(() => { load(); }, []);
@@ -262,7 +262,7 @@ export default function PortfolioPage() {
         onAddToWatchlist={async (code: string) => {
           try {
             const r = await api.addWatchlist(code);
-            if (r.added) { message.success('已加入自选'); setWatchlistCodes(prev => new Set(prev).add(code)); }
+            if (r.added) { message.success('已加入自选'); loadWatchlist(); }
           } catch (e: any) { message.error(e.message); }
         }}
       />

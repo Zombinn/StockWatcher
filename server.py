@@ -504,7 +504,7 @@ async def market_review(market: str = "cn"):
             "indices": [i.__dict__ for i in result.indices],
             "top_sectors": [s.__dict__ for s in result.top_sectors[:5]],
             "fall_sectors": [s.__dict__ for s in result.fall_sectors[:5]],
-            "all_sectors": [s.__dict__ for s in result.top_sectors] + [s.__dict__ for s in result.fall_sectors],
+            "all_sectors": list({s.name: s.__dict__ for s in result.top_sectors + result.fall_sectors}.values()),
             "northbound": result.northbound.__dict__ if result.northbound else None,
             "market_summary": result.market_summary,
             "llm_analysis": result.llm_analysis,

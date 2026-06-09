@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Card, Button, Row, Col, Statistic, Table, Tag, Alert, Typography, Space, Empty, Drawer } from 'antd';
+import { Card, Button, Row, Col, Statistic, Table, Tag, Alert, Typography, Space, Empty, message } from 'antd';
 import { ReloadOutlined, RiseOutlined, FallOutlined, LineChartOutlined } from '@ant-design/icons';
 import { api } from '../api';
-import ForecastChart from '../components/ForecastChart';
+import { useWatchlist } from '../hooks/useWatchlist';
 import StockDetailDrawer from '../components/StockDetailDrawer';
 
 const { Text } = Typography;
@@ -12,6 +12,9 @@ export default function AnalysisPage() {
   const [data, setData] = useState<any>(null);
   const [error, setError] = useState('');
   const [forecastStock, setForecastStock] = useState<any>(null);
+  const { watchlistCodes, loadWatchlist } = useWatchlist();
+
+  useEffect(() => { loadWatchlist(); }, []);
 
   const load = async () => {
     setLoading(true); setError('');
@@ -96,7 +99,8 @@ export default function AnalysisPage() {
       ) : data && data.stocks?.length ? (
         <>
           {/* 概览卡片 */}
-          <Row gutter={[12, 12]} style={{ marginBottom: 16 }}>
+          <div style={{ maxHeight: 380, overflowY: 'auto', marginBottom: 16, paddingRight: 4 }}>
+          <Row gutter={[12, 12]}>
             {data.stocks.map((s: any, idx: number) => {
               const isUp = (s.change_pct ?? 0) >= 0;
               const scoreColor = s.score >= 70 ? '#43a047' : s.score >= 40 ? '#f9a825' : '#e53935';
@@ -129,6 +133,7 @@ export default function AnalysisPage() {
               );
             })}
           </Row>
+          </div>
 
           {/* 明细表 */}
           <Card className="glass-card" title={<span style={{ fontSize: 15, fontWeight: 600 }}>分析明细</span>}>
@@ -144,8 +149,14 @@ export default function AnalysisPage() {
 
       <StockDetailDrawer
         stock={forecastStock}
-        inWatchlist={false}
+        inWatchlist={!!(forecastStock && watchlistCodes.has(forecastStock.code))}
         onClose={() => setForecastStock(null)}
+        onAddToWatchlist={async (code: string) => {
+          try {
+            const r = await api.addWatchlist(code);
+            if (r.added) { message.success('已加入自选'); loadWatchlist(); }
+          } catch (e: any) { message.error(e.message); }
+        }}
       />
     </div>
   );
