@@ -45,7 +45,7 @@ class YFinanceProvider(BaseDataProvider):
     async def get_kline(self, code: str, period: str = "daily", count: int = 120) -> List[KLine]:
         try:
             ticker = yf.Ticker(self._resolve_ticker(code))
-            df = ticker.history(period="6mo")
+            df = ticker.history(period="6mo", auto_adjust=False, repair=True)
             df = df.tail(count)
             results = []
             for date, r in df.iterrows():
