@@ -21,6 +21,7 @@ pypinyin>=0.50.0
 akshare>=1.12.0
 tushare>=1.4.0
 yfinance>=0.2.0
+scipy>=1.6.3  # yfinance repair=True 修复缺失收盘价依赖
 # 可选数据源（按需安装；未安装时工厂自动跳过）
 # baostock>=0.8.8      # A 股，无 token
 # pytdx>=1.72          # A 股通达信行情，无 token
