@@ -125,15 +125,15 @@ class AlertEngine:
                 if not quote:
                     continue
 
-                triggered_flag, current_val, msg = self._evaluate(rule, quote)
+                triggered_flag, current_val, msg, trigger_type, trigger_threshold = self._evaluate(rule, quote)
                 if triggered_flag:
                     event = AlertEvent(
                         rule_id=rule.id, code=rule.code,
                         name=rule.name or quote.name,
-                        rule_type=rule.rule_type,
+                        rule_type=trigger_type,
                         message=msg,
                         current_value=current_val,
-                        threshold=rule.threshold,
+                        threshold=trigger_threshold,
                     )
                     self._events.append(event)
                     triggered.append(event)
@@ -150,7 +150,7 @@ class AlertEngine:
 
         return triggered
 
-    def _evaluate(self, rule: AlertRule, quote) -> tuple[bool, float, str]:
+    def _evaluate(self, rule: AlertRule, quote) -> tuple[bool, float, str, str, float]:
         """评估规则所有维度"""
         checks = [
             ("price_above", "价格上穿", quote.price, rule.price_above, lambda c, t: c >= t),
@@ -161,8 +161,8 @@ class AlertEngine:
         for rtype, label, current, threshold, cond in checks:
             if threshold is not None and cond(current, threshold):
                 msg = f"[{rule.name or rule.code}] {label}触发: 当前{current:.2f} 阈值{threshold:.2f}"
-                return True, current, msg
-        return False, 0.0, ""
+                return True, current, msg, rtype, threshold
+        return False, 0.0, "", "", 0.0
 
     def get_recent_events(self, limit: int = 20) -> List[AlertEvent]:
         """获取最近告警事件"""
