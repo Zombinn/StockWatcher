@@ -26,6 +26,8 @@ export const api = {
     request<any>(`/portfolio/positions?code=${code}&quantity=${quantity}&cost_price=${cost_price}&name=${name || ''}${market ? `&market=${market}` : ''}`, { method: 'POST' }),
   removePosition: (code: string, quantity?: number) =>
     request<any>(`/portfolio/positions/${code}${quantity ? `?quantity=${quantity}` : ''}`, { method: 'DELETE' }),
+  updatePosition: (code: string, quantity: number, cost_price: number, name?: string) =>
+    request<any>(`/portfolio/positions/${encodeURIComponent(code)}`, { method: 'PUT', body: JSON.stringify({ quantity, cost_price, name }) }),
   importPositions: (text: string) =>
     request<any>('/portfolio/import', { method: 'POST', body: JSON.stringify({ text }) }),
 

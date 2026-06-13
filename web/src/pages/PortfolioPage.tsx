@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Card, Button, Row, Col, Statistic, Table, Tag, Alert, Typography, Modal, Input, InputNumber, Space, Select, Empty, message } from 'antd';
-import { ReloadOutlined, PlusOutlined, WalletOutlined, RiseOutlined, FallOutlined, ImportOutlined } from '@ant-design/icons';
+import { Card, Button, Row, Col, Statistic, Table, Tag, Alert, Typography, Modal, Input, InputNumber, Space, Select, Empty, message, Popconfirm } from 'antd';
+import { ReloadOutlined, PlusOutlined, WalletOutlined, RiseOutlined, FallOutlined, ImportOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import { api } from '../api';
 import { useWatchlist } from '../hooks/useWatchlist';
 import StockDetailDrawer from '../components/StockDetailDrawer';
@@ -23,6 +23,8 @@ export default function PortfolioPage() {
   const { watchlistCodes, loadWatchlist } = useWatchlist();
   const [filterMarket, setFilterMarket] = useState<string>('');
   const [form, setForm] = useState({ code: '', quantity: 100, cost_price: 0, market: '' });
+  const [editOpen, setEditOpen] = useState(false);
+  const [editForm, setEditForm] = useState({ code: '', name: '', quantity: 0, cost_price: 0 });
 
   const load = async () => {
     setLoading(true); setError('');
@@ -96,6 +98,20 @@ export default function PortfolioPage() {
         : '-',
     },
     { title: '占比', dataIndex: 'weight', width: 70, render: (v: number) => v != null ? `${v.toFixed(1)}%` : '-', align: 'right' as const },
+    { title: '操作', width: 60, align: 'center' as const,
+      render: (_: any, r: any) => (
+        <Space size={0}>
+          <Button type="text" size="small" icon={<EditOutlined style={{ color: '#f5642a' }} />
+          } onClick={(e) => { e.stopPropagation(); setEditForm({ code: r.code, name: r.name, quantity: r.quantity, cost_price: r.cost_price }); setEditOpen(true); }} />
+          <Popconfirm title={`清仓 ${r.code}?`} okText="清仓" cancelText="取消"
+            onConfirm={async (e?: any) => { e?.stopPropagation(); try { await api.removePosition(r.code); message.success('已清仓'); load(); } catch (e: any) { message.error(e.message); } }}
+            onCancel={(e?: any) => e?.stopPropagation()}>
+            <Button type="text" size="small" danger icon={<DeleteOutlined />}
+              onClick={(e) => e.stopPropagation()} />
+          </Popconfirm>
+        </Space>
+      ),
+    },
   ];
 
   return (
@@ -238,6 +254,34 @@ export default function PortfolioPage() {
             <div style={{ fontSize: 13, color: '#64748b', marginBottom: 4 }}>成本价</div>
             <InputNumber placeholder="输入每股成本价" value={form.cost_price} min={0} step={0.01}
               onChange={v => setForm({ ...form, cost_price: v || 0 })} style={{ width: '100%' }} />
+          </div>
+        </div>
+      </Modal>
+
+      <Modal title={`编辑持仓 - ${editForm.code}`} open={editOpen}
+        onOk={async () => {
+          try {
+            await api.updatePosition(editForm.code, editForm.quantity, editForm.cost_price, editForm.name);
+            message.success('已更新');
+            setEditOpen(false);
+            load();
+          } catch (e: any) { message.error(e.message); }
+        }}
+        onCancel={() => setEditOpen(false)} okText="保存" cancelText="取消">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 8 }}>
+          <div>
+            <div style={{ fontSize: 13, color: '#64748b', marginBottom: 4 }}>名称</div>
+            <Input value={editForm.name} onChange={e => setEditForm({ ...editForm, name: e.target.value })} />
+          </div>
+          <div>
+            <div style={{ fontSize: 13, color: '#64748b', marginBottom: 4 }}>数量</div>
+            <InputNumber value={editForm.quantity} min={1} style={{ width: '100%' }}
+              onChange={v => setEditForm({ ...editForm, quantity: v || 0 })} />
+          </div>
+          <div>
+            <div style={{ fontSize: 13, color: '#64748b', marginBottom: 4 }}>成本价</div>
+            <InputNumber value={editForm.cost_price} min={0} step={0.01} style={{ width: '100%' }}
+              onChange={v => setEditForm({ ...editForm, cost_price: v || 0 })} />
           </div>
         </div>
       </Modal>

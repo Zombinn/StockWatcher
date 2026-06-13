@@ -573,6 +573,27 @@ async def import_positions(payload: dict):
     return result
 
 
+@app.put("/api/v1/portfolio/positions/{code}")
+async def update_position(code: str, payload: dict):
+    """编辑持仓（直接覆盖数量/成本价）"""
+    from src.services.portfolio_service import PortfolioService
+    service = PortfolioService()
+    quantity = payload.get("quantity")
+    cost_price = payload.get("cost_price")
+    name = payload.get("name", "")
+    if quantity is None or cost_price is None:
+        raise HTTPException(400, "缺少 quantity 或 cost_price")
+    if code not in service._positions:
+        raise HTTPException(404, f"未找到 {code} 持仓")
+    service._positions[code].update({
+        "quantity": int(quantity),
+        "cost_price": float(cost_price),
+        "name": name or service._positions[code].get("name", ""),
+    })
+    service.save()
+    return {"success": True, "message": f"已更新 {code} 持仓"}
+
+
 # ====== 代码下拉（自选 + 持仓去重） ======
 @app.get("/api/v1/symbols")
 async def get_symbols():
