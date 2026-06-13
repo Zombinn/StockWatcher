@@ -25,6 +25,7 @@ export default function PortfolioPage() {
   const [form, setForm] = useState({ code: '', quantity: 100, cost_price: 0, market: '' });
   const [editOpen, setEditOpen] = useState(false);
   const [editForm, setEditForm] = useState({ code: '', name: '', quantity: 0, cost_price: 0 });
+  const [wlKey, setWlKey] = useState(0);
 
   const load = async () => {
     setLoading(true); setError('');
@@ -221,7 +222,7 @@ export default function PortfolioPage() {
           </Card>
 
           {/* 自选股（独立存储，无成本/盈亏/占比） */}
-          <WatchlistPanel />
+          <WatchlistPanel key={wlKey} />
         </>
       ) : (
         <Card className="glass-card"><Empty description="点击「刷新持仓」加载数据" /></Card>
@@ -306,7 +307,7 @@ export default function PortfolioPage() {
         onAddToWatchlist={async (code: string) => {
           try {
             const r = await api.addWatchlist(code);
-            if (r.added) { message.success('已加入自选'); loadWatchlist(); }
+            if (r.added) { message.success('已加入自选'); loadWatchlist(); setWlKey(k => k + 1); }
           } catch (e: any) { message.error(e.message); }
         }}
       />
