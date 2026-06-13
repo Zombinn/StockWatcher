@@ -41,6 +41,7 @@
 - **组合概览** — 总市值、总收益、风险评分、市场分布
 - **持仓明细** — 市场/代码/名称/数量/成本/现价/市值/盈亏
 - **市场筛选** — 按 A/港股/美股过滤
+- **编辑持仓** — 每行可编辑名称/数量/成本价，一键清仓
 - **批量导入** — CSV/粘贴导入持仓，自动解析
 - **自选股** — 独立自选列表，一键加入/移除
 - **股票详情** — 点击股票行打开 K 线+预测+评分详情
@@ -160,6 +161,9 @@ npm run dev
 | GET | `/api/v1/market/trading-day` | 交易日判断 |
 | GET | `/api/v1/portfolio` | 持仓管理 |
 | GET/POST | `/api/v1/watchlist` | 自选股管理 |
+| POST | `/api/v1/portfolio/import` | 批量导入持仓 |
+| PUT | `/api/v1/portfolio/positions/{code}` | 编辑持仓（数量/成本/名称） |
+| DELETE | `/api/v1/portfolio/positions/{code}` | 清仓或减仓 |
 | POST | `/api/v1/agent/chat` | Agent 问股（多轮对话） |
 | GET | `/api/v1/backtest` | 回测 |
 | POST | `/api/v1/backtest/report` | 生成回测报告（Markdown/HTML） |
