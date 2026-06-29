@@ -134,6 +134,7 @@ class AlertEngine:
                         message=msg,
                         current_value=current_val,
                         threshold=trigger_threshold,
+                        notified=True,
                     )
                     self._events.append(event)
                     triggered.append(event)
@@ -147,6 +148,15 @@ class AlertEngine:
 
         if triggered:
             self._save()
+            # 推送告警通知到所有已配置渠道
+            try:
+                from src.notification_sender.factory import send_to_all
+                lines = []
+                for ev in triggered:
+                    lines.append(f"🔔 {ev.message}")
+                await send_to_all("\n".join(lines), title=f"StockWatcher 告警 ({len(triggered)} 条)")
+            except Exception as notify_err:
+                logger.warning("告警通知推送失败: %s", notify_err)
 
         return triggered
 
